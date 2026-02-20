@@ -1,0 +1,520 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String     @id @default(cuid())
+  email     String     @unique
+  password  String
+  name      String
+  bio       String?
+  avatar    String?
+  photos    String?    // JSON array of up to 5 photo URLs
+  videoUrl  String?    // Short video profile URL
+  isVerified Boolean   @default(false) // Selfie verification status
+  verificationPhotoUrl String? // Selfie photo for verification
+  introVideoUrl String? // Intro video URL
+  hasClaimedProfileBonus Boolean @default(false) // Profile completion bonus claimed
+  isPaused Boolean @default(false) // User has paused their profile
+  pausedUntil DateTime? // When the pause ends
+  lastActivityDate DateTime? // Last time user was active
+  age       Int?
+  gender    String?
+  location  String?
+  country   String?
+  state     String?
+  city      String?
+  points    Int        @default(0)
+  tier      String     @default("free") // free, premium, vip
+  trialTier String?    // temporary tier from trial upgrade
+  trialExpiresAt DateTime? // when trial tier expires
+  likesUsedToday Int @default(0) // Daily like counter
+  lastLikeResetDate DateTime? // Last time likes were reset
+  messagesUsedToday Int @default(0) // Daily message counter
+  lastMessageResetDate DateTime? // Last time messages were reset
+  isAdmin   Boolean    @default(false)
+  lastSignInDate DateTime?
+  weeklySignInCount Int @default(0)
+  weeklySignInResetDate DateTime?
+  lastAdCompletedAt DateTime?
+  adCompletionsToday Int @default(0)
+  adCompletionsResetDate DateTime?
+  fraudScore Int @default(0)
+  isFlagged Boolean @default(false)
+  referralCode String? @unique // Unique code for referrals
+  referredById String? // User who referred this user
+  referredBy User? @relation("referrals", fields: [referredById], references: [id], onDelete: SetNull)
+  referrals User[] @relation("referrals") // Users referred by this user
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  pointsTransactions PointsTransaction[]
+  adViews            AdView[]
+  surveyResponses    SurveyResponse[]
+  sentMessages       Message[] @relation("sender")
+  receivedMessages   Message[] @relation("receiver")
+  likes              Like[] @relation("liker")
+  likedBy            Like[] @relation("liked")
+  matches            Match[] @relation("userMatches")
+  matchedWith        Match[] @relation("matchedWithUser")
+  blockedUsers       BlockedUser[] @relation("blocker")
+  blockedBy          BlockedUser[] @relation("blocked")
+  questionnaire      Questionnaire?
+  fraudAlerts        FraudAlert[]
+  redemptions        Redemption[]
+  premium            UserPremium?
+  reportsSubmitted   Report[] @relation("reporter")
+  reportsReceived    Report[] @relation("reported")
+  aiPicks            AiPick[] @relation("aiPickUser")
+  aiPickedFor        AiPick[] @relation("aiPickProfile")
+  thirdPartyRewards  ThirdPartyReward[]
+  adminProfile       AdminProfile?
+  callRequests       CallRequest[] @relation("callRequester")
+  callRequestsReceived CallRequest[] @relation("callRecipient")
+  adminRewards       AdminReward[] @relation("adminRewards")
+  receivedRewards    AdminReward[] @relation("receivedRewards")
+  undoActions        UndoAction[]
+  sponsorClicks      SponsorClick[]
+  referralsGiven Referral[] @relation("referrer")
+  referralsReceived Referral[] @relation("referred")
+  badges            UserBadge[]
+  typingIndicators  TypingIndicator[]
+  userBehaviors     UserBehavior[]
+  notifications     Notification[]
+
+  @@index([email])
+  @@index([tier])
+}
+
+model PointsTransaction {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount    Int
+  type      String   // "ad_view", "survey_complete", "message_sent", "profile_view", etc.
+  reason    String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model Ad {
+  id             String   @id @default(cuid())
+  title          String   @unique
+  description    String?
+  duration       Int      // in seconds
+  rewardPoints   Int
+  videoUrl       String
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  views AdView[]
+
+  @@index([isActive])
+}
+
+model AdView {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  adId      String
+  ad        Ad       @relation(fields: [adId], references: [id], onDelete: Cascade)
+  completed Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([completed])
+}
+
+model Survey {
+  id           String   @id @default(cuid())
+  title        String   @unique
+  description  String?
+  rewardPoints Int
+  questions    String   // JSON array of questions
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  responses SurveyResponse[]
+
+  @@index([isActive])
+}
+
+model SurveyResponse {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  surveyId  String
+  survey    Survey   @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  answers   String   // JSON object of answers
+  createdAt DateTime @default(now())
+
+  @@unique([userId, surveyId])
+  @@index([userId])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  senderId  String
+  sender    User     @relation("sender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId String
+  receiver  User     @relation("receiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  content   String
+  pointsCost Int     @default(5)
+  read      Boolean  @default(false)
+  readAt    DateTime? // When the message was read
+  createdAt DateTime @default(now())
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([createdAt])
+}
+
+model Like {
+  id        String   @id @default(cuid())
+  likerId   String
+  liker     User     @relation("liker", fields: [likerId], references: [id], onDelete: Cascade)
+  likedId   String
+  liked     User     @relation("liked", fields: [likedId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([likerId, likedId])
+  @@index([likerId])
+  @@index([likedId])
+}
+
+model Match {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation("userMatches", fields: [userId], references: [id], onDelete: Cascade)
+  matchedUserId String
+  matchedUser User   @relation("matchedWithUser", fields: [matchedUserId], references: [id], onDelete: Cascade)
+  dateOutcome String? // null, "first_date", "second_date", "relationship", "ghosted"
+  outcomeReportedAt DateTime? // When outcome was reported
+  expiresAt DateTime? // Match expires after 14 days of no message
+  isExpired Boolean @default(false) // Whether match has expired
+  createdAt DateTime @default(now())
+
+  @@unique([userId, matchedUserId])
+  @@index([userId])
+  @@index([matchedUserId])
+  @@index([expiresAt])
+  @@index([isExpired])
+}
+
+model BlockedUser {
+  id        String   @id @default(cuid())
+  blockerId String
+  blocker   User     @relation("blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockedId String
+  blocked   User     @relation("blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([blockerId, blockedId])
+  @@index([blockerId])
+  @@index([blockedId])
+}
+
+model Questionnaire {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  answers   String   // JSON object with 20 answers
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Reward {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  description String
+  pointsCost Int
+  type      String   // "premium_feature", "real_reward", "boost"
+  duration  Int?     // in days, for premium features
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  redemptions Redemption[]
+
+  @@index([isActive])
+}
+
+model Redemption {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rewardId  String
+  reward    Reward   @relation(fields: [rewardId], references: [id], onDelete: Cascade)
+  pointsSpent Int
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model UserPremium {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unlimitedLikes Boolean @default(false)
+  unlimitedMessages Boolean @default(false)
+  messagePriority Boolean @default(false)
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model FraudAlert {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   // "rapid_completion", "rate_limit_exceeded", "suspicious_pattern", etc.
+  severity  String   @default("low") // low, medium, high
+  description String
+  resolved  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([resolved])
+  @@index([createdAt])
+}
+
+model Report {
+  id        String   @id @default(cuid())
+  reporterId String
+  reporter  User     @relation("reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedUserId String
+  reportedUser User  @relation("reported", fields: [reportedUserId], references: [id], onDelete: Cascade)
+  type      String   // "inappropriate_message", "inappropriate_photo", "harassment", "spam", "fake_profile", "other"
+  description String
+  status    String   @default("pending") // "pending", "resolved"
+  action    String?  // "none", "warning", "suspended", "banned"
+  createdAt DateTime @default(now())
+
+  @@index([reporterId])
+  @@index([reportedUserId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model AiPick {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation("aiPickUser", fields: [userId], references: [id], onDelete: Cascade)
+  profileId String
+  profile   User     @relation("aiPickProfile", fields: [profileId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model ThirdPartyReward {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider  String   // "admob", "pollfish", etc.
+  points    Int
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([provider])
+  @@index([createdAt])
+}
+
+model AdminProfile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phone     String?
+  role      String   @default("moderator") // "super_admin", "moderator", "support"
+  department String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([role])
+}
+
+model CallRequest {
+  id        String   @id @default(cuid())
+  callerId  String
+  caller    User     @relation("callRequester", fields: [callerId], references: [id], onDelete: Cascade)
+  recipientId String
+  recipient User     @relation("callRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  callType  String   // "voice" or "video"
+  status    String   @default("pending") // "pending", "accepted", "rejected"
+  createdAt DateTime @default(now())
+  expiresAt DateTime?
+
+  @@index([callerId])
+  @@index([recipientId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model TickerMessage {
+  id        String   @id @default(cuid())
+  text      String
+  action    String?  // route path like "/shop", "/ads", etc.
+  isActive  Boolean  @default(true)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([order])
+}
+
+model AdminReward {
+  id        String   @id @default(cuid())
+  adminId   String
+  admin     User     @relation("adminRewards", fields: [adminId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?    @relation("receivedRewards", fields: [userId], references: [id], onDelete: Cascade)
+  points    Int
+  reason    String
+  bulkDistribution Boolean @default(false) // true if given to multiple users
+  recipientCount Int @default(1) // how many users received this
+  notificationSent Boolean @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([adminId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model UndoAction {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  actionType String  // "like_undo" or "pass_undo"
+  targetUserId String // the user whose action was undone
+  pointsRefunded Int
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model Sponsor {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  logo      String?  // URL to sponsor logo
+  website   String   // URL to redirect to
+  isActive  Boolean  @default(true)
+  order     Int      @default(0) // display order in navbar
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clicks    SponsorClick[]
+
+  @@index([isActive])
+  @@index([order])
+}
+
+model SponsorClick {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sponsorId String
+  sponsor   Sponsor  @relation(fields: [sponsorId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([sponsorId])
+  @@index([createdAt])
+}
+
+model Referral {
+  id        String   @id @default(cuid())
+  referrerId String
+  referrer  User     @relation("referrer", fields: [referrerId], references: [id], onDelete: Cascade)
+  referredId String
+  referred  User     @relation("referred", fields: [referredId], references: [id], onDelete: Cascade)
+  pointsAwarded Int @default(20)
+  referredBonusAwarded Boolean @default(false)
+  referredBonusAmount Int @default(15)
+  createdAt DateTime @default(now())
+
+  @@unique([referrerId, referredId])
+  @@index([referrerId])
+  @@index([referredId])
+  @@index([createdAt])
+}
+
+model UserBadge {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badgeType String   // "verified", "premium_member", "active_user", "great_conversationalist", "photo_verified"
+  name      String   // Display name
+  icon      String   // Emoji or icon
+  description String?
+  awardedAt DateTime @default(now())
+
+  @@unique([userId, badgeType])
+  @@index([userId])
+  @@index([badgeType])
+}
+
+model TypingIndicator {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversationWith String // The other user's ID
+  isTyping  Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, conversationWith])
+  @@index([userId])
+}
+
+model UserBehavior {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  targetUserId String // The user being interacted with
+  actionType String  // "like", "pass", "message", "view"
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([targetUserId])
+  @@index([createdAt])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   // "like", "match", "message", "call", "match_expiring", "match_expired"
+  title     String
+  message   String
+  relatedUserId String? // The user this notification is about
+  relatedId String?  // ID of the related object (match, message, etc.)
+  read      Boolean  @default(false)
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([read])
+  @@index([createdAt])
+  @@index([type])
+}
