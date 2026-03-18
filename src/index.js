@@ -25,6 +25,15 @@ app.get('/api/health', (req, res) => {
 // Routes
 app.use('/api/auth', authRoutes);
 
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('[ERROR]', err);
+  res.status(500).json({ 
+    error: 'Internal server error',
+    message: err.message 
+  });
+});
+
 const PORT = process.env.PORT || 3000;
 
 httpServer.listen(PORT, () => {
