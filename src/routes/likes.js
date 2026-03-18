@@ -2,7 +2,7 @@ import express from 'express';
 import { prisma } from '../index.js';
 import { authenticate } from '../middleware/auth.js';
 import { getPointsCost } from '../utils/constants.js';
-import { canLike, incrementLikeCount } from '../utils/dailyLimits.js';
+import { canLike, canPass, incrementLikeCount, incrementPassCount } from '../utils/dailyLimits.js';
 
 const router = express.Router();
 
@@ -15,14 +15,36 @@ router.post('/:likedId', authenticate, async (req, res, next) => {
       return res.status(400).json({ error: 'Cannot like yourself' });
     }
     
-    // Check daily like limit
+    // Get user info
+    const user = await prisma.user.findUnique({
+      where: { id: req.userId },
+      select: { tier: true, points: true }
+    });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Get like cost based on tier and usage
     const limitCheck = await canLike(prisma, req.userId);
+    
+    // Check if user has hit the daily like limit
     if (!limitCheck.canLike) {
       return res.status(429).json({ 
         error: limitCheck.error,
         limitReached: true,
-        remaining: limitCheck.remaining,
-        limit: limitCheck.limit
+        remaining: 0
+      });
+    }
+    
+    let likeCost = isAiPick ? 0 : (limitCheck.costPerLike || 0);
+    
+    // Check if user has enough coins for the like
+    if (user.points < likeCost) {
+      return res.status(400).json({ 
+        error: `Insufficient coins. Need ${likeCost} coins to like.`,
+        required: likeCost,
+        available: user.points
       });
     }
     
@@ -40,26 +62,6 @@ router.post('/:likedId', authenticate, async (req, res, next) => {
       return res.status(400).json({ error: 'Already liked this user' });
     }
     
-    // Get user tier
-    const user = await prisma.user.findUnique({
-      where: { id: req.userId },
-      select: { tier: true, points: true }
-    });
-    
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    
-    // Get points cost based on tier (0 if AI pick)
-    const pointsCost = isAiPick ? 0 : getPointsCost(user.tier, 'like');
-    
-    // Check if user has enough points
-    if (user.points < pointsCost) {
-      return res.status(400).json({ 
-        error: `Insufficient points. Need ${pointsCost} points to like.` 
-      });
-    }
-    
     // Create like
     const like = await prisma.like.create({
       data: {
@@ -68,22 +70,28 @@ router.post('/:likedId', authenticate, async (req, res, next) => {
       }
     });
     
-    // Increment like counter
+    // ALWAYS increment like counter (tracks total likes used, both free and paid)
     await incrementLikeCount(prisma, req.userId);
     
-    // Deduct points if cost > 0
-    if (pointsCost > 0) {
+    // Increment likes given counter
+    await prisma.user.update({
+      where: { id: req.userId },
+      data: { likesGiven: { increment: 1 } }
+    });
+    
+    // Deduct coins if cost > 0 (only for likes beyond the free limit)
+    if (likeCost > 0) {
       try {
         await prisma.user.update({
           where: { id: req.userId },
-          data: { points: { decrement: pointsCost } }
+          data: { points: { decrement: likeCost } }
         });
         
         // Record transaction
         await prisma.pointsTransaction.create({
           data: {
             userId: req.userId,
-            amount: -pointsCost,
+            amount: -likeCost,
             type: 'like_sent',
             reason: 'Like sent'
           }
@@ -134,11 +142,11 @@ router.post('/:likedId', authenticate, async (req, res, next) => {
         like,
         match: true,
         message: 'It\'s a match!',
-        pointsCost
+        pointsCost: likeCost
       });
     }
     
-    res.status(201).json({ like, match: false, pointsCost });
+    res.status(201).json({ like, match: false, pointsCost: likeCost });
   } catch (err) {
     console.error('Like endpoint error:', err);
     next(err);
@@ -360,6 +368,60 @@ router.post('/:likedId/undo', authenticate, async (req, res, next) => {
     });
   } catch (err) {
     console.error('Undo like error:', err);
+    next(err);
+  }
+});
+
+// Pass on a profile - tracks pass with daily limit
+router.post('/:passedId/pass', authenticate, async (req, res, next) => {
+  try {
+    const { passedId } = req.params;
+    
+    if (req.userId === passedId) {
+      return res.status(400).json({ error: 'Cannot pass on yourself' });
+    }
+    
+    // Check daily pass limit
+    const limitCheck = await canPass(prisma, req.userId);
+    if (!limitCheck.canPass) {
+      return res.status(429).json({ 
+        error: limitCheck.error,
+        limitReached: true,
+        remaining: limitCheck.remaining,
+        limit: limitCheck.limit
+      });
+    }
+    
+    // Increment pass counter
+    await incrementPassCount(prisma, req.userId);
+    
+    // Increment passes given counter
+    await prisma.user.update({
+      where: { id: req.userId },
+      data: { passesGiven: { increment: 1 } }
+    });
+    
+    // Record pass action in UserBehavior
+    try {
+      await prisma.userBehavior.create({
+        data: {
+          userId: req.userId,
+          targetUserId: passedId,
+          actionType: 'pass'
+        }
+      });
+    } catch (behaviorErr) {
+      console.error('Error recording pass behavior:', behaviorErr);
+      // Continue anyway - pass was recorded in counter
+    }
+    
+    res.json({ 
+      success: true, 
+      message: 'Passed on profile',
+      remaining: limitCheck.remaining - 1
+    });
+  } catch (err) {
+    console.error('Pass endpoint error:', err);
     next(err);
   }
 });

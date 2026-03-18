@@ -139,6 +139,7 @@ router.get('/score/:targetUserId', authenticate, async (req, res) => {
       : currentUser.tier
 
     const isPremium = effectiveTier !== 'free'
+    const isVIP = effectiveTier === 'vip'
 
     // If free user, return locked response
     if (!isPremium) {

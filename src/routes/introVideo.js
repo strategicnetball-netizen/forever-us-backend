@@ -19,10 +19,10 @@ router.post('/upload', authenticate, async (req, res, next) => {
       return res.status(400).json({ error: 'Invalid video format. Must be a base64 video.' });
     }
 
-    // Check size (base64 is ~33% larger than binary, so limit to ~30MB base64)
-    const maxSize = 30 * 1024 * 1024;
+    // Check size (base64 is ~33% larger than binary, so limit to ~5MB base64)
+    const maxSize = 5 * 1024 * 1024;
     if (videoUrl.length > maxSize) {
-      return res.status(400).json({ error: `Video is too large. Max 30MB. Current size: ${(videoUrl.length / 1024 / 1024).toFixed(2)}MB` });
+      return res.status(413).json({ error: `Video is too large. Max 5MB. Current size: ${(videoUrl.length / 1024 / 1024).toFixed(2)}MB. Please record a shorter video or use a smaller file.` });
     }
 
     // Get user to check tier

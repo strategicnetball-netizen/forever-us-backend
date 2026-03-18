@@ -5,8 +5,12 @@ import {
   getLikesRemaining, 
   getMessagesRemaining,
   shouldResetLimit,
-  DAILY_LIKE_LIMIT,
-  DAILY_MESSAGE_LIMIT
+  DAILY_LIKE_LIMIT_FREE,
+  DAILY_LIKE_LIMIT_PREMIUM,
+  DAILY_MESSAGE_LIMIT_FREE,
+  DAILY_MESSAGE_LIMIT_PREMIUM,
+  MAX_PAYABLE_LIKES_FREE,
+  MAX_PAYABLE_MESSAGES_FREE
 } from '../utils/dailyLimits.js'
 
 const router = express.Router()
@@ -35,26 +39,38 @@ router.get('/check', authenticate, async (req, res, next) => {
     const likesNeedReset = shouldResetLimit(user.lastLikeResetDate)
     const messagesNeedReset = shouldResetLimit(user.lastMessageResetDate)
 
-    // Calculate remaining
-    const likesRemaining = user.tier === 'premium' 
-      ? Infinity 
-      : (likesNeedReset ? DAILY_LIKE_LIMIT : Math.max(0, DAILY_LIKE_LIMIT - user.likesUsedToday))
+    // Get the appropriate limits based on tier
+    const likesLimit = user.tier === 'premium' ? DAILY_LIKE_LIMIT_PREMIUM : DAILY_LIKE_LIMIT_FREE
+    const messagesLimit = user.tier === 'premium' ? DAILY_MESSAGE_LIMIT_PREMIUM : DAILY_MESSAGE_LIMIT_FREE
+    
+    // For free users, include payable limits
+    let totalLikesLimit = likesLimit
+    if (user.tier === 'free') {
+      totalLikesLimit = DAILY_LIKE_LIMIT_FREE + MAX_PAYABLE_LIKES_FREE // 5 free + 7 payable = 12
+    }
 
-    const messagesRemaining = user.tier === 'premium'
+    // Calculate remaining
+    const likesRemaining = user.tier === 'vip' 
+      ? Infinity 
+      : (likesNeedReset ? totalLikesLimit : Math.max(0, totalLikesLimit - user.likesUsedToday))
+
+    const messagesRemaining = user.tier === 'vip'
       ? Infinity
-      : (messagesNeedReset ? DAILY_MESSAGE_LIMIT : Math.max(0, DAILY_MESSAGE_LIMIT - user.messagesUsedToday))
+      : (messagesNeedReset ? messagesLimit : Math.max(0, messagesLimit - user.messagesUsedToday))
 
     res.json({
       tier: user.tier,
-      isPremium: user.tier === 'premium',
+      isPremium: user.tier === 'premium' || user.tier === 'vip',
       likes: {
         remaining: likesRemaining,
-        limit: DAILY_LIKE_LIMIT,
-        used: likesNeedReset ? 0 : user.likesUsedToday
+        limit: totalLikesLimit,
+        used: likesNeedReset ? 0 : user.likesUsedToday,
+        freeLimit: DAILY_LIKE_LIMIT_FREE,
+        payableLimit: user.tier === 'free' ? MAX_PAYABLE_LIKES_FREE : 0
       },
       messages: {
         remaining: messagesRemaining,
-        limit: DAILY_MESSAGE_LIMIT,
+        limit: messagesLimit,
         used: messagesNeedReset ? 0 : user.messagesUsedToday
       }
     })

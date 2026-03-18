@@ -1,6 +1,7 @@
 import express from 'express'
 import { PrismaClient } from '@prisma/client'
 import { authenticate } from '../middleware/auth.js'
+import { canWatchAd, incrementAdCount } from '../utils/dailyLimits.js'
 
 const router = express.Router()
 const prisma = new PrismaClient()
@@ -11,22 +12,14 @@ router.post('/admob/complete', authenticate, async (req, res) => {
     const userId = req.userId
     const ADMOB_REWARD = 10
 
-    // Check if user already claimed AdMob reward today
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-
-    const existingReward = await prisma.thirdPartyReward.findFirst({
-      where: {
-        userId,
-        provider: 'admob',
-        createdAt: {
-          gte: today
-        }
-      }
-    })
-
-    if (existingReward) {
-      return res.status(400).json({ error: 'You already claimed AdMob reward today' })
+    // Check daily ad limit (same as regular ads - 10 per day)
+    const adLimitCheck = await canWatchAd(prisma, userId)
+    if (!adLimitCheck.canWatchAd) {
+      return res.status(429).json({ 
+        error: adLimitCheck.error,
+        remaining: adLimitCheck.remaining,
+        limit: adLimitCheck.limit
+      })
     }
 
     // Record the reward
@@ -38,8 +31,11 @@ router.post('/admob/complete', authenticate, async (req, res) => {
       }
     })
 
+    // Increment ad counter
+    await incrementAdCount(prisma, userId)
+
     // Add points to user
-    await prisma.user.update({
+    const user = await prisma.user.update({
       where: { id: userId },
       data: {
         points: {
@@ -61,22 +57,14 @@ router.post('/pollfish/complete', authenticate, async (req, res) => {
     const userId = req.userId
     const POLLFISH_REWARD = 15
 
-    // Check if user already claimed Pollfish reward today
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-
-    const existingReward = await prisma.thirdPartyReward.findFirst({
-      where: {
-        userId,
-        provider: 'pollfish',
-        createdAt: {
-          gte: today
-        }
-      }
-    })
-
-    if (existingReward) {
-      return res.status(400).json({ error: 'You already claimed Pollfish reward today' })
+    // Check daily ad limit (same as regular ads - 10 per day)
+    const adLimitCheck = await canWatchAd(prisma, userId)
+    if (!adLimitCheck.canWatchAd) {
+      return res.status(429).json({ 
+        error: adLimitCheck.error,
+        remaining: adLimitCheck.remaining,
+        limit: adLimitCheck.limit
+      })
     }
 
     // Record the reward
@@ -88,8 +76,11 @@ router.post('/pollfish/complete', authenticate, async (req, res) => {
       }
     })
 
+    // Increment ad counter
+    await incrementAdCount(prisma, userId)
+
     // Add points to user
-    await prisma.user.update({
+    const user = await prisma.user.update({
       where: { id: userId },
       data: {
         points: {

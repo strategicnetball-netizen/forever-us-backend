@@ -1,4 +1,4 @@
-// This is your Prisma schema file,
+// This is your Prisma schema file for SQLite
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
@@ -17,29 +17,35 @@ model User {
   name      String
   bio       String?
   avatar    String?
-  photos    String?    // JSON array of up to 5 photo URLs
-  videoUrl  String?    // Short video profile URL
-  isVerified Boolean   @default(false) // Selfie verification status
-  verificationPhotoUrl String? // Selfie photo for verification
-  introVideoUrl String? // Intro video URL
-  hasClaimedProfileBonus Boolean @default(false) // Profile completion bonus claimed
-  isPaused Boolean @default(false) // User has paused their profile
-  pausedUntil DateTime? // When the pause ends
-  lastActivityDate DateTime? // Last time user was active
+  photos    String?
+  videoUrl  String?
+  isVerified Boolean   @default(false)
+  verificationPhotoUrl String?
+  introVideoUrl String?
+  hasClaimedProfileBonus Boolean @default(false)
+  isPaused Boolean @default(false)
+  pausedUntil DateTime?
+  lastActivityDate DateTime?
+  profileCompleted Boolean @default(false)
   age       Int?
   gender    String?
   location  String?
   country   String?
   state     String?
   city      String?
+  showAllCountries Boolean @default(false)
+  selectedCountries String?
+  lookingFor String?
   points    Int        @default(0)
-  tier      String     @default("free") // free, premium, vip
-  trialTier String?    // temporary tier from trial upgrade
-  trialExpiresAt DateTime? // when trial tier expires
-  likesUsedToday Int @default(0) // Daily like counter
-  lastLikeResetDate DateTime? // Last time likes were reset
-  messagesUsedToday Int @default(0) // Daily message counter
-  lastMessageResetDate DateTime? // Last time messages were reset
+  tier      String     @default("free")
+  trialTier String?
+  trialExpiresAt DateTime?
+  likesUsedToday Int @default(0)
+  lastLikeResetDate DateTime?
+  passesUsedToday Int @default(0)
+  lastPassResetDate DateTime?
+  messagesUsedToday Int @default(0)
+  lastMessageResetDate DateTime?
   isAdmin   Boolean    @default(false)
   lastSignInDate DateTime?
   weeklySignInCount Int @default(0)
@@ -49,10 +55,11 @@ model User {
   adCompletionsResetDate DateTime?
   fraudScore Int @default(0)
   isFlagged Boolean @default(false)
-  referralCode String? @unique // Unique code for referrals
-  referredById String? // User who referred this user
-  referredBy User? @relation("referrals", fields: [referredById], references: [id], onDelete: SetNull)
-  referrals User[] @relation("referrals") // Users referred by this user
+  botIgnoredByAdmin Boolean @default(false)
+  referralCode String? @unique
+  referredById String?
+  referredBy User? @relation("referrals", fields: [referredById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  referrals User[] @relation("referrals")
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 
@@ -68,6 +75,16 @@ model User {
   blockedUsers       BlockedUser[] @relation("blocker")
   blockedBy          BlockedUser[] @relation("blocked")
   questionnaire      Questionnaire?
+  personalityQuestionnaire PersonalityQuestionnaire? @relation("personalityQuestionnaire")
+  relationshipGoalsQuestionnaire RelationshipGoalsQuestionnaire? @relation("relationshipGoalsQuestionnaire")
+  lifestyleQuestionnaire LifestyleQuestionnaire? @relation("lifestyleQuestionnaire")
+  valuesBelifsQuestionnaire ValuesBelifsQuestionnaire? @relation("valuesBelifsQuestionnaire")
+  interestsHobbiesQuestionnaire InterestsHobbiesQuestionnaire? @relation("interestsHobbiesQuestionnaire")
+  musicPersonalityQuestionnaire MusicPersonalityQuestionnaire? @relation("musicPersonalityQuestionnaire")
+  lifestylePreferencesQuestionnaire LifestylePreferencesQuestionnaire? @relation("lifestylePreferencesQuestionnaire")
+  redFlagsQuestionnaire RedFlagsQuestionnaire? @relation("redFlagsQuestionnaire")
+  dealBreakersQuestionnaire DealBreakersQuestionnaire? @relation("dealBreakersQuestionnaire")
+  questionnaireCompletions QuestionnaireCompletion[] @relation("questionnaireCompletions")
   fraudAlerts        FraudAlert[]
   redemptions        Redemption[]
   premium            UserPremium?
@@ -79,6 +96,8 @@ model User {
   adminProfile       AdminProfile?
   callRequests       CallRequest[] @relation("callRequester")
   callRequestsReceived CallRequest[] @relation("callRecipient")
+  callHistoryInitiated CallHistory[] @relation("callHistoryCaller")
+  callHistoryReceived CallHistory[] @relation("callHistoryRecipient")
   adminRewards       AdminReward[] @relation("adminRewards")
   receivedRewards    AdminReward[] @relation("receivedRewards")
   undoActions        UndoAction[]
@@ -89,17 +108,45 @@ model User {
   typingIndicators  TypingIndicator[]
   userBehaviors     UserBehavior[]
   notifications     Notification[]
+  profileBoosts     ProfileBoost[]
+  personalityType String?
+  profileScore Int?
+  profileCompletion Int?
+  preferences        UserPreferences?
+  discussionsCreated Discussion[] @relation("DiscussionAuthor")
+  discussionReplies DiscussionReply[] @relation("DiscussionReplyAuthor")
+  eventsOrganized   Event[] @relation("EventOrganizer")
+  eventAttendances  EventAttendee[] @relation("EventAttendee")
+  messagesSent      Int           @default(0)
+  messagesReceived  Int           @default(0)
+  likesGiven        Int           @default(0)
+  passesGiven       Int           @default(0)
 
-  @@index([email])
   @@index([tier])
+  @@index([country])
+}
+
+model UserPreferences {
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  emailNotifications    Boolean  @default(true)
+  pushNotifications     Boolean  @default(true)
+  messageNotifications  Boolean  @default(true)
+  matchNotifications    Boolean  @default(true)
+  likeNotifications     Boolean  @default(true)
+  privateProfile        Boolean  @default(false)
+  allowMessages         Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 }
 
 model PointsTransaction {
   id        String   @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   amount    Int
-  type      String   // "ad_view", "survey_complete", "message_sent", "profile_view", etc.
+  type      String
   reason    String?
   createdAt DateTime @default(now())
 
@@ -111,7 +158,7 @@ model Ad {
   id             String   @id @default(cuid())
   title          String   @unique
   description    String?
-  duration       Int      // in seconds
+  duration       Int
   rewardPoints   Int
   videoUrl       String
   isActive       Boolean  @default(true)
@@ -126,9 +173,9 @@ model Ad {
 model AdView {
   id        String   @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   adId      String
-  ad        Ad       @relation(fields: [adId], references: [id], onDelete: Cascade)
+  ad        Ad       @relation(fields: [adId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   completed Boolean  @default(false)
   createdAt DateTime @default(now())
 
@@ -141,7 +188,7 @@ model Survey {
   title        String   @unique
   description  String?
   rewardPoints Int
-  questions    String   // JSON array of questions
+  questions    String
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -154,10 +201,10 @@ model Survey {
 model SurveyResponse {
   id        String   @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   surveyId  String
-  survey    Survey   @relation(fields: [surveyId], references: [id], onDelete: Cascade)
-  answers   String   // JSON object of answers
+  survey    Survey   @relation(fields: [surveyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  answers   String
   createdAt DateTime @default(now())
 
   @@unique([userId, surveyId])
@@ -167,13 +214,14 @@ model SurveyResponse {
 model Message {
   id        String   @id @default(cuid())
   senderId  String
-  sender    User     @relation("sender", fields: [senderId], references: [id], onDelete: Cascade)
+  sender    User     @relation("sender", fields: [senderId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   receiverId String
-  receiver  User     @relation("receiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  receiver  User     @relation("receiver", fields: [receiverId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   content   String
+  photoUrl  String?
   pointsCost Int     @default(5)
   read      Boolean  @default(false)
-  readAt    DateTime? // When the message was read
+  readAt    DateTime?
   createdAt DateTime @default(now())
 
   @@index([senderId])
@@ -184,9 +232,9 @@ model Message {
 model Like {
   id        String   @id @default(cuid())
   likerId   String
-  liker     User     @relation("liker", fields: [likerId], references: [id], onDelete: Cascade)
+  liker     User     @relation("liker", fields: [likerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   likedId   String
-  liked     User     @relation("liked", fields: [likedId], references: [id], onDelete: Cascade)
+  liked     User     @relation("liked", fields: [likedId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   createdAt DateTime @default(now())
 
   @@unique([likerId, likedId])
@@ -197,13 +245,13 @@ model Like {
 model Match {
   id        String   @id @default(cuid())
   userId    String
-  user      User     @relation("userMatches", fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation("userMatches", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   matchedUserId String
-  matchedUser User   @relation("matchedWithUser", fields: [matchedUserId], references: [id], onDelete: Cascade)
-  dateOutcome String? // null, "first_date", "second_date", "relationship", "ghosted"
-  outcomeReportedAt DateTime? // When outcome was reported
-  expiresAt DateTime? // Match expires after 14 days of no message
-  isExpired Boolean @default(false) // Whether match has expired
+  matchedUser User   @relation("matchedWithUser", fields: [matchedUserId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  dateOutcome String?
+  outcomeReportedAt DateTime?
+  expiresAt DateTime?
+  isExpired Boolean @default(false)
   createdAt DateTime @default(now())
 
   @@unique([userId, matchedUserId])
@@ -216,9 +264,9 @@ model Match {
 model BlockedUser {
   id        String   @id @default(cuid())
   blockerId String
-  blocker   User     @relation("blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocker   User     @relation("blocker", fields: [blockerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   blockedId String
-  blocked   User     @relation("blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+  blocked   User     @relation("blocked", fields: [blockedId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   createdAt DateTime @default(now())
 
   @@unique([blockerId, blockedId])
@@ -229,12 +277,151 @@ model BlockedUser {
 model Questionnaire {
   id        String   @id @default(cuid())
   userId    String   @unique
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  answers   String   // JSON object with 20 answers
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  answers   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PersonalityQuestionnaire {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation("personalityQuestionnaire", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  answers   String
+  completedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model RelationshipGoalsQuestionnaire {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation("relationshipGoalsQuestionnaire", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  answers   String
+  completedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model LifestyleQuestionnaire {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation("lifestyleQuestionnaire", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  answers   String
+  completedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ValuesBelifsQuestionnaire {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation("valuesBelifsQuestionnaire", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  answers   String
+  completedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model InterestsHobbiesQuestionnaire {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation("interestsHobbiesQuestionnaire", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  answers   String
+  completedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model MusicPersonalityQuestionnaire {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation("musicPersonalityQuestionnaire", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  answers   String
+  completedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model LifestylePreferencesQuestionnaire {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation("lifestylePreferencesQuestionnaire", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  answers   String
+  completedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model RedFlagsQuestionnaire {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation("redFlagsQuestionnaire", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  rawInput  String?
+  selectedFlags String
+  completedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model DealBreakersQuestionnaire {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation("dealBreakersQuestionnaire", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  rawInput  String?
+  selectedBreakers String
+  completedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model RedFlagsList {
+  id        String   @id @default(cuid())
+  flag      String   @unique
+  frequency Int      @default(0)
+  topFourCount Int   @default(0)
+  isActive  Boolean  @default(true)
+  order     Int      @default(0)
+  isCustom  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([isActive])
+  @@index([order])
+  @@index([frequency])
+  @@index([topFourCount])
+}
+
+model DealBreakersList {
+  id        String   @id @default(cuid())
+  breaker   String   @unique
+  frequency Int      @default(0)
+  topFourCount Int   @default(0)
+  isActive  Boolean  @default(true)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([order])
+  @@index([frequency])
+  @@index([topFourCount])
+}
+
+model QuestionnaireCompletion {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation("questionnaireCompletions", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  type      String
+  completed Boolean  @default(false)
+  completedAt DateTime?
+  coinsRewarded Int @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, type])
   @@index([userId])
+  @@index([type])
 }
 
 model Reward {
@@ -242,8 +429,8 @@ model Reward {
   name      String   @unique
   description String
   pointsCost Int
-  type      String   // "premium_feature", "real_reward", "boost"
-  duration  Int?     // in days, for premium features
+  type      String
+  duration  Int?
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -256,9 +443,9 @@ model Reward {
 model Redemption {
   id        String   @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   rewardId  String
-  reward    Reward   @relation(fields: [rewardId], references: [id], onDelete: Cascade)
+  reward    Reward   @relation(fields: [rewardId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   pointsSpent Int
   expiresAt DateTime?
   createdAt DateTime @default(now())
@@ -270,23 +457,21 @@ model Redemption {
 model UserPremium {
   id        String   @id @default(cuid())
   userId    String   @unique
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   unlimitedLikes Boolean @default(false)
   unlimitedMessages Boolean @default(false)
   messagePriority Boolean @default(false)
   expiresAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  @@index([userId])
 }
 
 model FraudAlert {
   id        String   @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type      String   // "rapid_completion", "rate_limit_exceeded", "suspicious_pattern", etc.
-  severity  String   @default("low") // low, medium, high
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  type      String
+  severity  String   @default("low")
   description String
   resolved  Boolean  @default(false)
   createdAt DateTime @default(now())
@@ -299,13 +484,15 @@ model FraudAlert {
 model Report {
   id        String   @id @default(cuid())
   reporterId String
-  reporter  User     @relation("reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reporter  User     @relation("reporter", fields: [reporterId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   reportedUserId String
-  reportedUser User  @relation("reported", fields: [reportedUserId], references: [id], onDelete: Cascade)
-  type      String   // "inappropriate_message", "inappropriate_photo", "harassment", "spam", "fake_profile", "other"
+  reportedUser User  @relation("reported", fields: [reportedUserId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  type      String
   description String
-  status    String   @default("pending") // "pending", "resolved"
-  action    String?  // "none", "warning", "suspended", "banned"
+  status    String   @default("pending")
+  action    String?
+  reportedContent String?
+  reportedPhotoUrl String?
   createdAt DateTime @default(now())
 
   @@index([reporterId])
@@ -317,9 +504,9 @@ model Report {
 model AiPick {
   id        String   @id @default(cuid())
   userId    String
-  user      User     @relation("aiPickUser", fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation("aiPickUser", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   profileId String
-  profile   User     @relation("aiPickProfile", fields: [profileId], references: [id], onDelete: Cascade)
+  profile   User     @relation("aiPickProfile", fields: [profileId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   createdAt DateTime @default(now())
 
   @@index([userId])
@@ -329,8 +516,8 @@ model AiPick {
 model ThirdPartyReward {
   id        String   @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  provider  String   // "admob", "pollfish", etc.
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  provider  String
   points    Int
   createdAt DateTime @default(now())
 
@@ -342,25 +529,24 @@ model ThirdPartyReward {
 model AdminProfile {
   id        String   @id @default(cuid())
   userId    String   @unique
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   phone     String?
-  role      String   @default("moderator") // "super_admin", "moderator", "support"
+  role      String   @default("moderator")
   department String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([userId])
   @@index([role])
 }
 
 model CallRequest {
   id        String   @id @default(cuid())
   callerId  String
-  caller    User     @relation("callRequester", fields: [callerId], references: [id], onDelete: Cascade)
+  caller    User     @relation("callRequester", fields: [callerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   recipientId String
-  recipient User     @relation("callRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
-  callType  String   // "voice" or "video"
-  status    String   @default("pending") // "pending", "accepted", "rejected"
+  recipient User     @relation("callRecipient", fields: [recipientId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  callType  String
+  status    String   @default("pending")
   createdAt DateTime @default(now())
   expiresAt DateTime?
 
@@ -370,10 +556,29 @@ model CallRequest {
   @@index([createdAt])
 }
 
+model CallHistory {
+  id        String   @id @default(cuid())
+  callerId  String
+  caller    User     @relation("callHistoryCaller", fields: [callerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  recipientId String
+  recipient User     @relation("callHistoryRecipient", fields: [recipientId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  callType  String
+  status    String
+  duration  Int      @default(0)
+  startedAt DateTime
+  endedAt   DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([callerId])
+  @@index([recipientId])
+  @@index([status])
+  @@index([startedAt])
+}
+
 model TickerMessage {
   id        String   @id @default(cuid())
   text      String
-  action    String?  // route path like "/shop", "/ads", etc.
+  action    String?
   isActive  Boolean  @default(true)
   order     Int      @default(0)
   createdAt DateTime @default(now())
@@ -386,13 +591,13 @@ model TickerMessage {
 model AdminReward {
   id        String   @id @default(cuid())
   adminId   String
-  admin     User     @relation("adminRewards", fields: [adminId], references: [id], onDelete: Cascade)
+  admin     User     @relation("adminRewards", fields: [adminId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   userId    String?
-  user      User?    @relation("receivedRewards", fields: [userId], references: [id], onDelete: Cascade)
+  user      User?    @relation("receivedRewards", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   points    Int
   reason    String
-  bulkDistribution Boolean @default(false) // true if given to multiple users
-  recipientCount Int @default(1) // how many users received this
+  bulkDistribution Boolean @default(false)
+  recipientCount Int @default(1)
   notificationSent Boolean @default(false)
   createdAt DateTime @default(now())
 
@@ -404,9 +609,9 @@ model AdminReward {
 model UndoAction {
   id        String   @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  actionType String  // "like_undo" or "pass_undo"
-  targetUserId String // the user whose action was undone
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  actionType String
+  targetUserId String
   pointsRefunded Int
   createdAt DateTime @default(now())
 
@@ -417,10 +622,10 @@ model UndoAction {
 model Sponsor {
   id        String   @id @default(cuid())
   name      String   @unique
-  logo      String?  // URL to sponsor logo
-  website   String   // URL to redirect to
+  logo      String?
+  website   String
   isActive  Boolean  @default(true)
-  order     Int      @default(0) // display order in navbar
+  order     Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -433,9 +638,9 @@ model Sponsor {
 model SponsorClick {
   id        String   @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   sponsorId String
-  sponsor   Sponsor  @relation(fields: [sponsorId], references: [id], onDelete: Cascade)
+  sponsor   Sponsor  @relation(fields: [sponsorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   createdAt DateTime @default(now())
 
   @@index([userId])
@@ -446,9 +651,9 @@ model SponsorClick {
 model Referral {
   id        String   @id @default(cuid())
   referrerId String
-  referrer  User     @relation("referrer", fields: [referrerId], references: [id], onDelete: Cascade)
+  referrer  User     @relation("referrer", fields: [referrerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   referredId String
-  referred  User     @relation("referred", fields: [referredId], references: [id], onDelete: Cascade)
+  referred  User     @relation("referred", fields: [referredId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   pointsAwarded Int @default(20)
   referredBonusAwarded Boolean @default(false)
   referredBonusAmount Int @default(15)
@@ -463,10 +668,10 @@ model Referral {
 model UserBadge {
   id        String   @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  badgeType String   // "verified", "premium_member", "active_user", "great_conversationalist", "photo_verified"
-  name      String   // Display name
-  icon      String   // Emoji or icon
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  badgeType String
+  name      String
+  icon      String
   description String?
   awardedAt DateTime @default(now())
 
@@ -478,8 +683,8 @@ model UserBadge {
 model TypingIndicator {
   id        String   @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  conversationWith String // The other user's ID
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  conversationWith String
   isTyping  Boolean  @default(false)
   updatedAt DateTime @updatedAt
 
@@ -490,9 +695,9 @@ model TypingIndicator {
 model UserBehavior {
   id        String   @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  targetUserId String // The user being interacted with
-  actionType String  // "like", "pass", "message", "view"
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  targetUserId String
+  actionType String
   createdAt DateTime @default(now())
 
   @@index([userId])
@@ -503,12 +708,12 @@ model UserBehavior {
 model Notification {
   id        String   @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type      String   // "like", "match", "message", "call", "match_expiring", "match_expired"
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  type      String
   title     String
   message   String
-  relatedUserId String? // The user this notification is about
-  relatedId String?  // ID of the related object (match, message, etc.)
+  relatedUserId String?
+  relatedId String?
   read      Boolean  @default(false)
   readAt    DateTime?
   createdAt DateTime @default(now())
@@ -517,4 +722,79 @@ model Notification {
   @@index([read])
   @@index([createdAt])
   @@index([type])
+}
+
+model ProfileBoost {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  boostType String   @default("standard")
+  coinsCost Int
+  expiresAt DateTime
+  isActive  Boolean  @default(true)
+  lastBoostAt DateTime?
+  nextBoostAvailableAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([isActive])
+  @@index([createdAt])
+}
+
+
+model Discussion {
+  id        String     @id @default(cuid())
+  title     String
+  content   String
+  category  String     @default("general")
+  authorId  String
+  author    User       @relation("DiscussionAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  replies   DiscussionReply[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model DiscussionReply {
+  id            String     @id @default(cuid())
+  content       String
+  authorId      String
+  author        User       @relation("DiscussionReplyAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  discussionId  String
+  discussion    Discussion @relation(fields: [discussionId], references: [id], onDelete: Cascade)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+}
+
+model Event {
+  id            String     @id @default(cuid())
+  title         String
+  description   String?
+  eventDate     DateTime
+  location      String
+  category      String     @default("general")
+  organizerId   String
+  organizer     User       @relation("EventOrganizer", fields: [organizerId], references: [id], onDelete: Cascade)
+  maxAttendees  Int?
+  attendees     EventAttendee[]
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@index([eventDate])
+  @@index([category])
+  @@index([organizerId])
+}
+
+model EventAttendee {
+  id        String   @id @default(cuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation("EventAttendee", fields: [userId], references: [id], onDelete: Cascade)
+  status    String   @default("interested")
+  createdAt DateTime @default(now())
+
+  @@unique([eventId, userId])
+  @@index([eventId])
+  @@index([userId])
 }

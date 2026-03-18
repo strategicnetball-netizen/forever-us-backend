@@ -264,13 +264,21 @@ router.post('/upgrade', authenticate, async (req, res, next) => {
         break
     }
 
-    // Update user tier
+    // Update user tier (and ensure profileCompleted is true so they don't get redirected to onboarding)
+    // Also reset daily limits when upgrading
     const updatedUser = await prisma.user.update({
       where: { id: req.userId },
       data: {
         tier: packageKey,
         trialTier: null,
-        trialExpiresAt: null
+        trialExpiresAt: null,
+        profileCompleted: true,
+        likesUsedToday: 0,
+        lastLikeResetDate: new Date(),
+        passesUsedToday: 0,
+        lastPassResetDate: new Date(),
+        messagesUsedToday: 0,
+        lastMessageResetDate: new Date()
       }
     })
 
@@ -329,23 +337,14 @@ router.post('/downgrade', authenticate, async (req, res, next) => {
       return res.status(400).json({ error: 'Cannot upgrade via downgrade endpoint' })
     }
 
-    // Update user tier
+    // Update user tier (and ensure profileCompleted is true)
     const updatedUser = await prisma.user.update({
       where: { id: req.userId },
       data: {
         tier: packageKey,
         trialTier: null,
-        trialExpiresAt: null
-      }
-    })
-
-    // Record transaction
-    await prisma.pointsTransaction.create({
-      data: {
-        userId: req.userId,
-        amount: 0,
-        type: 'tier_downgrade',
-        reason: `Downgraded to ${packageKey} tier`
+        trialExpiresAt: null,
+        profileCompleted: true
       }
     })
 
@@ -466,13 +465,21 @@ router.post('/trial-upgrade', authenticate, async (req, res, next) => {
     const trialExpiresAt = new Date()
     trialExpiresAt.setMonth(trialExpiresAt.getMonth() + 1)
 
-    // Update user with trial tier and deduct points
+    // Update user with trial tier and deduct points (and ensure profileCompleted is true)
+    // Also reset daily limits when upgrading
     const updatedUser = await prisma.user.update({
       where: { id: req.userId },
       data: {
         trialTier: nextTier,
         trialExpiresAt,
-        points: { decrement: 500 }
+        points: { decrement: 500 },
+        profileCompleted: true,
+        likesUsedToday: 0,
+        lastLikeResetDate: new Date(),
+        passesUsedToday: 0,
+        lastPassResetDate: new Date(),
+        messagesUsedToday: 0,
+        lastMessageResetDate: new Date()
       }
     })
 

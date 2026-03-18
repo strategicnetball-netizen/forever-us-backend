@@ -1,40 +1,45 @@
-import dotenv from 'dotenv'
 import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcryptjs'
-
-dotenv.config()
 
 const prisma = new PrismaClient()
 
 async function createAdmin() {
   try {
-    const hashedPassword = await bcrypt.hash('admin123', 10)
-    
-    const admin = await prisma.user.upsert({
-      where: { email: 'admin@admin.com' },
-      update: {
+    const email = 'admin@foreverus-dating.com'
+    const password = 'Admin@123456'
+    const hashedPassword = await bcrypt.hash(password, 10)
+
+    // Check if admin already exists
+    const existingAdmin = await prisma.user.findUnique({
+      where: { email }
+    })
+
+    if (existingAdmin) {
+      console.log('Admin already exists:', email)
+      return
+    }
+
+    // Create admin user
+    const admin = await prisma.user.create({
+      data: {
+        email,
         password: hashedPassword,
-        name: 'Admin User',
-        points: 1000
-      },
-      create: {
-        email: 'admin@admin.com',
-        password: hashedPassword,
-        name: 'Admin User',
-        points: 1000,
+        name: 'Admin',
         age: 30,
-        gender: 'other',
-        location: 'Admin City'
+        gender: 'Other',
+        location: 'Admin',
+        bio: 'Administrator account',
+        isAdmin: true,
+        points: 10000
       }
     })
 
-    console.log('✓ Admin user created/updated:')
-    console.log(`  Email: ${admin.email}`)
-    console.log(`  Password: admin123`)
-    process.exit(0)
-  } catch (err) {
-    console.error('Error:', err.message)
-    process.exit(1)
+    console.log('✓ Admin account created successfully!')
+    console.log('Email:', email)
+    console.log('Password:', password)
+    console.log('User ID:', admin.id)
+  } catch (error) {
+    console.error('Error creating admin:', error.message)
   } finally {
     await prisma.$disconnect()
   }

@@ -26,9 +26,24 @@ router.get('/', authenticate, async (req, res, next) => {
       orderBy: { createdAt: 'desc' }
     });
 
-    // Filter out admirers I've already liked back (mutual likes)
+    // Get list of users I've passed on
+    const passedUsers = await prisma.userBehavior.findMany({
+      where: {
+        userId: req.userId,
+        actionType: 'pass'
+      },
+      select: { targetUserId: true }
+    });
+    const passedIds = new Set(passedUsers.map(p => p.targetUserId));
+
+    // Filter out admirers I've already liked back (mutual likes) and those I've passed on
     const filteredAdmirers = [];
     for (const admirer of admirers) {
+      // Skip if I've passed on this user
+      if (passedIds.has(admirer.liker.id)) {
+        continue;
+      }
+
       const mutualLike = await prisma.like.findUnique({
         where: {
           likerId_likedId: {

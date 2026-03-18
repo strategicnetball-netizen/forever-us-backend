@@ -5,11 +5,19 @@ import { getEffectiveTier } from '../utils/constants.js';
 
 const router = express.Router();
 
+
+
 router.post('/browse', authenticate, async (req, res, next) => {
   try {
-    const { minAge, maxAge, gender, location, distance, name } = req.body
+    const { minAge, maxAge, gender, location, distance, name, showAllCountries, verificationStatus, profileCompletion, lastActive } = req.body
 
-    console.log('Browse filters received:', { minAge, maxAge, gender, location, distance, name })
+    console.log('Browse filters received:', { minAge, maxAge, gender, location, distance, name, showAllCountries, verificationStatus, profileCompletion, lastActive })
+
+    // Get current user's tier
+    const currentUser = await prisma.user.findUnique({
+      where: { id: req.userId },
+      select: { tier: true }
+    })
 
     // Get list of users already liked by current user
     const likedUsers = await prisma.like.findMany({
@@ -18,8 +26,25 @@ router.post('/browse', authenticate, async (req, res, next) => {
     })
     const likedIds = likedUsers.map(like => like.likedId)
 
+    // Get list of users already passed on by current user
+    const passedUsers = await prisma.userBehavior.findMany({
+      where: { 
+        userId: req.userId,
+        actionType: 'pass'
+      },
+      select: { targetUserId: true }
+    })
+    const passedIds = passedUsers.map(pass => pass.targetUserId)
+
+    // Get list of users blocked by current user
+    const blockedUsers = await prisma.blockedUser.findMany({
+      where: { blockerId: req.userId },
+      select: { blockedId: true }
+    })
+    const blockedIds = blockedUsers.map(block => block.blockedId)
+
     const where = {
-      id: { notIn: [req.userId, ...likedIds] }
+      id: { notIn: [req.userId, ...likedIds, ...passedIds, ...blockedIds] }
     }
 
     // Age filter - ensure we have valid numbers
@@ -51,6 +76,35 @@ router.post('/browse', authenticate, async (req, res, next) => {
       }
     }
 
+    // VIP-ONLY FILTERS
+    if (currentUser?.tier === 'vip') {
+      // Verification status filter (VIP only)
+      if (verificationStatus && verificationStatus !== '') {
+        if (verificationStatus === 'verified') {
+          where.isVerified = true
+        } else if (verificationStatus === 'unverified') {
+          where.isVerified = false
+        }
+      }
+
+      // Profile completion filter (VIP only)
+      if (profileCompletion && profileCompletion !== '') {
+        if (profileCompletion === 'complete') {
+          where.profileCompleted = true
+        } else if (profileCompletion === 'incomplete') {
+          where.profileCompleted = false
+        }
+      }
+
+      // Last active filter (VIP only) - show users active in last X days
+      if (lastActive && lastActive !== '') {
+        const daysAgo = parseInt(lastActive)
+        const dateThreshold = new Date()
+        dateThreshold.setDate(dateThreshold.getDate() - daysAgo)
+        where.updatedAt = { gte: dateThreshold }
+      }
+    }
+
     console.log('Browse where clause:', JSON.stringify(where, null, 2))
 
     const users = await prisma.user.findMany({
@@ -63,7 +117,10 @@ router.post('/browse', authenticate, async (req, res, next) => {
         age: true,
         gender: true,
         location: true,
-        tier: true
+        tier: true,
+        isVerified: true,
+        profileCompleted: true,
+        updatedAt: true
       },
       take: 20
     })
@@ -78,6 +135,12 @@ router.post('/browse', authenticate, async (req, res, next) => {
 
 router.get('/browse', authenticate, async (req, res, next) => {
   try {
+    // Get current user's country and preference
+    const currentUser = await prisma.user.findUnique({
+      where: { id: req.userId },
+      select: { country: true, showAllCountries: true }
+    });
+
     // Get list of users already liked by current user
     const likedUsers = await prisma.like.findMany({
       where: { likerId: req.userId },
@@ -85,13 +148,29 @@ router.get('/browse', authenticate, async (req, res, next) => {
     });
     const likedIds = likedUsers.map(like => like.likedId);
 
-    const users = await prisma.user.findMany({
-      where: {
-        id: { 
-          not: req.userId,
-          notIn: likedIds
-        }
+    // Get list of users already passed on by current user
+    const passedUsers = await prisma.userBehavior.findMany({
+      where: { 
+        userId: req.userId,
+        actionType: 'pass'
       },
+      select: { targetUserId: true }
+    });
+    const passedIds = passedUsers.map(pass => pass.targetUserId);
+
+    const where = {
+      id: { 
+        notIn: [req.userId, ...likedIds, ...passedIds]
+      }
+    };
+
+    // Apply country filter unless user chose to see all countries
+    if (currentUser?.country && !currentUser?.showAllCountries) {
+      where.country = currentUser.country;
+    }
+
+    const users = await prisma.user.findMany({
+      where,
       select: {
         id: true,
         name: true,
@@ -100,6 +179,7 @@ router.get('/browse', authenticate, async (req, res, next) => {
         age: true,
         gender: true,
         location: true,
+        country: true,
         tier: true
       },
       take: 20 // Limit to 20 profiles
@@ -124,6 +204,7 @@ router.get('/me', authenticate, async (req, res, next) => {
         photos: true,
         age: true,
         gender: true,
+        lookingFor: true,
         location: true,
         country: true,
         state: true,
@@ -136,27 +217,36 @@ router.get('/me', authenticate, async (req, res, next) => {
         verificationPhotoUrl: true,
         introVideoUrl: true,
         hasClaimedProfileBonus: true,
+        profileCompleted: true,
+        showAllCountries: true,
+        isAdmin: true,
         createdAt: true
       }
     });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
     
     // Parse photos back to array
     const effectiveTier = getEffectiveTier(user);
     const userData = {
       ...user,
       effectiveTier,
-      photos: user.photos ? JSON.parse(user.photos) : []
+      photos: user.photos ? JSON.parse(user.photos) : [],
+      lookingFor: user.lookingFor ? (typeof user.lookingFor === 'string' ? JSON.parse(user.lookingFor) : user.lookingFor) : []
     };
     
     res.json(userData);
   } catch (err) {
+    console.error('GET /me error:', err);
     next(err);
   }
 });
 
 router.put('/me', authenticate, async (req, res, next) => {
   try {
-    const { name, bio, avatar, age, gender, location, country, state, city, photos } = req.body;
+    const { name, bio, avatar, age, gender, lookingFor, location, country, state, city, photos } = req.body;
     
     // Verify user exists
     const existingUser = await prisma.user.findUnique({
@@ -185,6 +275,7 @@ router.put('/me', authenticate, async (req, res, next) => {
     if (avatar !== undefined && avatar !== null) updateData.avatar = avatar;
     if (age !== undefined && age !== null) updateData.age = parseInt(age);
     if (gender !== undefined && gender !== null) updateData.gender = gender;
+    if (lookingFor !== undefined && lookingFor !== null) updateData.lookingFor = typeof lookingFor === 'string' ? lookingFor : JSON.stringify(lookingFor);
     if (location !== undefined && location !== null) updateData.location = location;
     if (country !== undefined && country !== null) updateData.country = country;
     if (state !== undefined && state !== null) updateData.state = state;
@@ -207,6 +298,7 @@ router.put('/me', authenticate, async (req, res, next) => {
         photos: true,
         age: true,
         gender: true,
+        lookingFor: true,
         location: true,
         country: true,
         state: true,
@@ -249,6 +341,8 @@ router.get('/:userId', authenticate, async (req, res, next) => {
         city: true,
         points: true,
         tier: true,
+        isVerified: true,
+        introVideoUrl: true,
         createdAt: true
       }
     });
@@ -308,6 +402,79 @@ router.post('/upload-photos', authenticate, async (req, res, next) => {
     };
 
     res.json(userData);
+  } catch (err) {
+    console.error('POST /upload-photos error:', err);
+    next(err);
+  }
+});
+
+// Toggle country preference
+router.put('/preferences/country', authenticate, async (req, res, next) => {
+  try {
+    const { showAllCountries } = req.body;
+
+    if (typeof showAllCountries !== 'boolean') {
+      return res.status(400).json({ error: 'showAllCountries must be a boolean' });
+    }
+
+    const user = await prisma.user.update({
+      where: { id: req.userId },
+      data: { showAllCountries },
+      select: {
+        id: true,
+        country: true,
+        showAllCountries: true
+      }
+    });
+
+    res.json({
+      message: showAllCountries ? 'Now viewing profiles from all countries' : `Now viewing profiles from ${user.country} only`,
+      user
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Block a user
+router.post('/:userId/block', authenticate, async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+
+    if (userId === req.userId) {
+      return res.status(400).json({ error: 'Cannot block yourself' });
+    }
+
+    // Check if user exists
+    const targetUser = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+
+    if (!targetUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Check if already blocked
+    const existingBlock = await prisma.blockedUser.findFirst({
+      where: {
+        blockerId: req.userId,
+        blockedId: userId
+      }
+    });
+
+    if (existingBlock) {
+      return res.status(400).json({ error: 'User is already blocked' });
+    }
+
+    // Create block
+    await prisma.blockedUser.create({
+      data: {
+        blockerId: req.userId,
+        blockedId: userId
+      }
+    });
+
+    res.json({ message: 'User blocked successfully' });
   } catch (err) {
     next(err);
   }

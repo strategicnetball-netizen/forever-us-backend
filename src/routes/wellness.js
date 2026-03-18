@@ -1,68 +1,86 @@
 import express from 'express'
-import { prisma } from '../index.js'
+import { PrismaClient } from '@prisma/client'
 import { authenticate } from '../middleware/auth.js'
 
 const router = express.Router()
+const prisma = new PrismaClient()
 
-// Get activity dashboard data
-router.get('/activity-dashboard', authenticate, async (req, res, next) => {
+// GET /api/wellness/activity-dashboard
+router.get('/activity-dashboard', authenticate, async (req, res) => {
   try {
     const userId = req.userId
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-
-    // Get user's activity stats
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
-        createdAt: true,
-        lastActivityDate: true,
         isPaused: true,
-        pausedUntil: true
+        pausedUntil: true,
+        lastActivityDate: true,
+        createdAt: true
       }
     })
 
-    // Count matches in last 30 days
-    const matchesCount = await prisma.like.count({
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' })
+    }
+
+    // Calculate stats
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    
+    // Matches this month (likes sent)
+    const matchesThisMonth = await prisma.like.count({
       where: {
         likerId: userId,
         createdAt: { gte: thirtyDaysAgo }
       }
     })
 
-    // Count conversations started (messages sent)
-    const conversationsCount = await prisma.message.findMany({
-      where: {
-        senderId: userId,
-        createdAt: { gte: thirtyDaysAgo }
-      },
-      distinct: ['receiverId'],
-      select: { receiverId: true }
+    // Conversations started (unique people messaged)
+    const conversationsStarted = await prisma.message.findMany({
+      where: { senderId: userId },
+      distinct: ['recipientId'],
+      select: { recipientId: true }
     })
 
-    // Count actual dates (mutual matches with messages)
-    const mutualMatches = await prisma.match.findMany({
-      where: {
-        userId: userId,
-        createdAt: { gte: thirtyDaysAgo }
-      },
-      select: { matchedUserId: true }
+    // Potential dates (mutual matches)
+    const sentLikes = await prisma.like.findMany({
+      where: { likerId: userId },
+      select: { likedId: true }
     })
 
-    const datesCount = mutualMatches.filter(match => {
-      return conversationsCount.some(conv => conv.receiverId === match.matchedUserId)
-    }).length
+    const receivedLikes = await prisma.like.findMany({
+      where: { likedId: userId },
+      select: { likerId: true }
+    })
 
-    // Calculate days active
+    const sentLikeIds = sentLikes.map(l => l.likedId)
+    const receivedLikeIds = receivedLikes.map(l => l.likerId)
+    const mutualLikeIds = sentLikeIds.filter(id => receivedLikeIds.includes(id))
+
+    const potentialDates = await prisma.message.count({
+      where: {
+        OR: [
+          { senderId: userId, recipientId: { in: mutualLikeIds } },
+          { recipientId: userId, senderId: { in: mutualLikeIds } }
+        ]
+      }
+    })
+
+    // Days active
     const daysActive = Math.floor((Date.now() - user.createdAt.getTime()) / (24 * 60 * 60 * 1000))
+    
+    // Days since last active
     const daysSinceLastActive = user.lastActivityDate 
       ? Math.floor((Date.now() - user.lastActivityDate.getTime()) / (24 * 60 * 60 * 1000))
       : daysActive
 
+    // Check if should suggest pause (45+ consecutive days active)
+    const shouldSuggestPause = daysSinceLastActive === 0 && daysActive >= 45
+
     res.json({
       stats: {
-        matchesThisMonth: matchesCount,
-        conversationsStarted: conversationsCount.length,
-        potentialDates: datesCount,
+        matchesThisMonth,
+        conversationsStarted: conversationsStarted.length,
+        potentialDates,
         daysActive,
         daysSinceLastActive
       },
@@ -70,15 +88,16 @@ router.get('/activity-dashboard', authenticate, async (req, res, next) => {
         isPaused: user.isPaused,
         pausedUntil: user.pausedUntil
       },
-      shouldSuggestPause: daysSinceLastActive > 45 && !user.isPaused
+      shouldSuggestPause
     })
-  } catch (err) {
-    next(err)
+  } catch (error) {
+    console.error('Wellness dashboard error:', error)
+    res.status(500).json({ error: 'Failed to fetch wellness data' })
   }
 })
 
-// Pause profile
-router.post('/pause-profile', authenticate, async (req, res, next) => {
+// POST /api/wellness/pause-profile
+router.post('/pause-profile', authenticate, async (req, res) => {
   try {
     const userId = req.userId
     const { durationDays } = req.body
@@ -94,21 +113,29 @@ router.post('/pause-profile', authenticate, async (req, res, next) => {
       data: {
         isPaused: true,
         pausedUntil
+      },
+      select: {
+        id: true,
+        isPaused: true,
+        pausedUntil: true
       }
     })
 
     res.json({
-      success: true,
       message: `Profile paused for ${durationDays} days`,
-      pausedUntil
+      pauseStatus: {
+        isPaused: user.isPaused,
+        pausedUntil: user.pausedUntil
+      }
     })
-  } catch (err) {
-    next(err)
+  } catch (error) {
+    console.error('Pause profile error:', error)
+    res.status(500).json({ error: 'Failed to pause profile' })
   }
 })
 
-// Resume profile
-router.post('/resume-profile', authenticate, async (req, res, next) => {
+// POST /api/wellness/resume-profile
+router.post('/resume-profile', authenticate, async (req, res) => {
   try {
     const userId = req.userId
 
@@ -117,33 +144,41 @@ router.post('/resume-profile', authenticate, async (req, res, next) => {
       data: {
         isPaused: false,
         pausedUntil: null
+      },
+      select: {
+        id: true,
+        isPaused: true,
+        pausedUntil: true
       }
     })
 
     res.json({
-      success: true,
-      message: 'Profile resumed'
+      message: 'Profile resumed',
+      pauseStatus: {
+        isPaused: user.isPaused,
+        pausedUntil: user.pausedUntil
+      }
     })
-  } catch (err) {
-    next(err)
+  } catch (error) {
+    console.error('Resume profile error:', error)
+    res.status(500).json({ error: 'Failed to resume profile' })
   }
 })
 
-// Update last activity
-router.post('/update-activity', authenticate, async (req, res, next) => {
+// POST /api/wellness/update-activity
+router.post('/update-activity', authenticate, async (req, res) => {
   try {
     const userId = req.userId
 
     await prisma.user.update({
       where: { id: userId },
-      data: {
-        lastActivityDate: new Date()
-      }
+      data: { lastActivityDate: new Date() }
     })
 
-    res.json({ success: true })
-  } catch (err) {
-    next(err)
+    res.json({ message: 'Activity updated' })
+  } catch (error) {
+    console.error('Update activity error:', error)
+    res.status(500).json({ error: 'Failed to update activity' })
   }
 })
 

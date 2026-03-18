@@ -2,6 +2,7 @@ import express from 'express';
 import { prisma } from '../index.js';
 import { authenticate } from '../middleware/auth.js';
 import { checkAdFraud, recordAdCompletion, shouldBlockUser } from '../utils/fraudDetection.js';
+import { canWatchAd, incrementAdCount } from '../utils/dailyLimits.js';
 
 const router = express.Router();
 
@@ -65,6 +66,16 @@ router.post('/:adId/complete', authenticate, async (req, res, next) => {
   try {
     const { adId } = req.params;
     
+    // Check daily ad limit
+    const adLimitCheck = await canWatchAd(prisma, req.userId);
+    if (!adLimitCheck.canWatchAd) {
+      return res.status(429).json({ 
+        error: adLimitCheck.error,
+        remaining: adLimitCheck.remaining,
+        limit: adLimitCheck.limit
+      });
+    }
+    
     // Find the most recent incomplete ad view for this user and ad
     const adView = await prisma.adView.findFirst({
       where: {
@@ -97,6 +108,9 @@ router.post('/:adId/complete', authenticate, async (req, res, next) => {
     
     // Record completion for rate limiting
     await recordAdCompletion(req.userId);
+    
+    // Increment ad counter
+    await incrementAdCount(prisma, req.userId);
     
     // Award points
     const user = await prisma.user.update({

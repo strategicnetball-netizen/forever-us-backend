@@ -7,7 +7,7 @@ const router = express.Router()
 // Get all matches for current user
 router.get('/', authenticate, async (req, res) => {
   try {
-    const userId = req.user.id
+    const userId = req.userId
 
     // Get matches where user is either side
     const matches = await prisma.match.findMany({
@@ -49,7 +49,8 @@ router.get('/', authenticate, async (req, res) => {
       createdAt: match.createdAt
     }))
 
-    res.json(transformedMatches)
+    // Return only the last 8 matches
+    res.json(transformedMatches.slice(0, 8))
   } catch (err) {
     console.error('Error fetching matches:', err)
     res.status(500).json({ error: 'Failed to fetch matches' })
@@ -59,7 +60,7 @@ router.get('/', authenticate, async (req, res) => {
 // Check if two users have matched
 router.get('/check/:userId', authenticate, async (req, res) => {
   try {
-    const currentUserId = req.user.id
+    const currentUserId = req.userId
     const { userId } = req.params
 
     const match = await prisma.match.findFirst({
@@ -81,7 +82,7 @@ router.get('/check/:userId', authenticate, async (req, res) => {
 // Create a match when both users have liked each other
 router.post('/create', authenticate, async (req, res) => {
   try {
-    const userId = req.user.id
+    const userId = req.userId
     const { targetUserId } = req.body
 
     if (!targetUserId) {
@@ -155,7 +156,7 @@ router.post('/create', authenticate, async (req, res) => {
 // Unmatch
 router.post('/unmatch/:matchedUserId', authenticate, async (req, res) => {
   try {
-    const userId = req.user.id
+    const userId = req.userId
     const { matchedUserId } = req.params
 
     await prisma.match.deleteMany({

@@ -40,9 +40,32 @@ import outcomesRoutes from './routes/outcomes.js';
 import limitsRoutes from './routes/limits.js';
 import notificationsRoutes from './routes/notifications.js';
 import matchExpirationRoutes from './routes/matchExpiration.js';
+import optionalQuestionnairesRoutes from './routes/optionalQuestionnaires.js';
+import lifestylePreferencesRoutes from './routes/lifestylePreferences.js';
+import boostsRoutes from './routes/boosts.js';
+import preferencesRoutes from './routes/preferences.js';
+import easyWinsRoutes from './routes/easyWins.js';
+import achievementsRoutes from './routes/achievements.js';
+import activityFeedRoutes from './routes/activityFeed.js';
+import discussionsRoutes from './routes/discussions.js';
+import eventsRoutes from './routes/events.js';
+import emailNotificationsRoutes from './routes/emailNotifications.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { initializeBackupScheduler } from './services/backupService.js';
+import { startDailyCleanup } from './utils/eventCleanup.js';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+import fs from 'fs';
 
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Load .env.development first if it exists, then .env (production overrides)
+const devEnvPath = `${__dirname}/../.env.development`;
+if (fs.existsSync(devEnvPath)) {
+  dotenv.config({ path: devEnvPath, override: true });
+}
+dotenv.config({ path: `${__dirname}/../.env` });
 
 const app = express();
 const httpServer = createServer(app);
@@ -57,7 +80,12 @@ global.prisma = prisma;
 // Middleware
 app.use(cors());
 app.use(express.json({ limit: '100mb' }));
-app.use(express.urlencoded({ limit: '100mb' }));
+app.use(express.urlencoded({ limit: '100mb', extended: true }));
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -96,14 +124,37 @@ app.use('/api/outcomes', outcomesRoutes);
 app.use('/api/limits', limitsRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/match-expiration', matchExpirationRoutes);
+app.use('/api/optional-questionnaires', optionalQuestionnairesRoutes);
+app.use('/api/lifestyle-preferences', lifestylePreferencesRoutes);
+app.use('/api/boosts', boostsRoutes);
+app.use('/api/preferences', preferencesRoutes);
+app.use('/api/easy-wins', easyWinsRoutes);
+app.use('/api/achievements', achievementsRoutes);
+app.use('/api/activity-feed', activityFeedRoutes);
+app.use('/api/discussions', discussionsRoutes);
+app.use('/api/events', eventsRoutes);
+app.use('/api/email-notifications', emailNotificationsRoutes);
 
 // Error handling
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
 
-httpServer.listen(PORT, () => {
+const server = httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  
+  // Initialize backup scheduler
+  initializeBackupScheduler();
+  
+  // Initialize daily event cleanup
+  startDailyCleanup();
+});
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use`);
+    process.exit(1);
+  }
 });
 
 export { prisma };

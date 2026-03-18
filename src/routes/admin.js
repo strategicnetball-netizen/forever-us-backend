@@ -5,14 +5,13 @@ import { authenticate } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Middleware to check if user is admin (you'd add this to User model in production)
+// Middleware to check if user is admin
 const isAdmin = async (req, res, next) => {
-  // For now, check if user email ends with @admin.com
   const user = await prisma.user.findUnique({
     where: { id: req.userId }
   });
   
-  if (!user || !user.email.endsWith('@admin.com')) {
+  if (!user || user.isAdmin !== true) {
     return res.status(403).json({ error: 'Admin access required' });
   }
   
@@ -80,7 +79,6 @@ router.get('/admins', authenticate, isAdmin, async (req, res, next) => {
   try {
     const admins = await prisma.user.findMany({
       where: { isAdmin: true },
-      include: { adminProfile: true },
       select: {
         id: true,
         name: true,
@@ -289,6 +287,19 @@ router.get('/stats', authenticate, isAdmin, async (req, res, next) => {
     const adminRewardCount = adminRewardStats._count || 0;
     const avgPointsPerReward = adminRewardCount > 0 ? Math.round(totalAdminPointsDistributed / adminRewardCount) : 0;
     
+    // Count blocked users
+    const blockedUsers = await prisma.blockedUser.count();
+    
+    // Get messaging analytics
+    const messagingStats = await prisma.user.aggregate({
+      _sum: {
+        messagesSent: true,
+        messagesReceived: true,
+        likesGiven: true,
+        passesGiven: true
+      }
+    });
+    
     res.json({
       totalUsers,
       totalPointsDistributed: totalPoints._sum.amount || 0,
@@ -302,7 +313,12 @@ router.get('/stats', authenticate, isAdmin, async (req, res, next) => {
       reportedUsers,
       adminPointsDistributed: totalAdminPointsDistributed,
       adminRewardCount,
-      avgPointsPerReward
+      avgPointsPerReward,
+      blockedUsers,
+      totalMessagesSent: messagingStats._sum.messagesSent || 0,
+      totalMessagesReceived: messagingStats._sum.messagesReceived || 0,
+      totalLikesGiven: messagingStats._sum.likesGiven || 0,
+      totalPassesGiven: messagingStats._sum.passesGiven || 0
     });
   } catch (err) {
     next(err);
@@ -490,16 +506,21 @@ router.get('/bot-detection-report', authenticate, isAdmin, async (req, res, next
   try {
     const { detectBotBehavior } = await import('../utils/fraudDetection.js');
     
-    // Get users with incomplete profiles or high ad activity
+    // Get users with incomplete profiles or high ad activity, excluding ignored ones
     const suspiciousUsers = await prisma.user.findMany({
       where: {
-        OR: [
-          { bio: null },
-          { bio: '' },
-          { photos: null },
-          { photos: '[]' },
-          { age: null },
-          { gender: null }
+        AND: [
+          {
+            OR: [
+              { bio: null },
+              { bio: '' },
+              { photos: null },
+              { photos: '[]' },
+              { age: null },
+              { gender: null }
+            ]
+          },
+          { botIgnoredByAdmin: false }
         ]
       },
       select: {
@@ -530,6 +551,340 @@ router.get('/bot-detection-report', authenticate, isAdmin, async (req, res, next
       totalSuspicious: suspiciousUsers.length,
       confirmedBots: report.length,
       bots: report
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// View suspicious user profile details
+router.get('/bot-detection/:userId/view', authenticate, isAdmin, async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    const { detectBotBehavior } = await import('../utils/fraudDetection.js');
+    
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        age: true,
+        gender: true,
+        location: true,
+        bio: true,
+        photos: true,
+        avatar: true,
+        createdAt: true,
+        questionnaire: true,
+        botIgnoredByAdmin: true
+      }
+    });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const botAnalysis = await detectBotBehavior(userId);
+    
+    // Get engagement stats
+    const likes = await prisma.like.count({
+      where: { likerId: userId }
+    });
+    
+    const messages = await prisma.message.count({
+      where: { senderId: userId }
+    });
+    
+    const adViews = await prisma.adView.count({
+      where: { userId }
+    });
+    
+    res.json({
+      user: {
+        ...user,
+        photos: user.photos ? JSON.parse(user.photos) : []
+      },
+      botAnalysis,
+      engagement: {
+        likes,
+        messages,
+        adViews
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Ignore bot detection alert for a user
+router.put('/bot-detection/:userId/ignore', authenticate, isAdmin, async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: { botIgnoredByAdmin: true }
+    });
+    
+    res.json({ 
+      message: 'User ignored from bot detection report',
+      userId: user.id,
+      ignored: user.botIgnoredByAdmin
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Un-ignore bot detection alert for a user
+router.put('/bot-detection/:userId/unignore', authenticate, isAdmin, async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: { botIgnoredByAdmin: false }
+    });
+    
+    res.json({ 
+      message: 'User un-ignored from bot detection report',
+      userId: user.id,
+      ignored: user.botIgnoredByAdmin
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Get blocked users list
+router.get('/blocked-users', authenticate, isAdmin, async (req, res, next) => {
+  try {
+    const blockedUsers = await prisma.blockedUser.findMany({
+      include: {
+        blocker: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
+        blocked: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            age: true,
+            gender: true,
+            location: true,
+            avatar: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100
+    });
+    
+    res.json(blockedUsers);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Get messaging analytics
+router.get('/analytics/messaging', authenticate, isAdmin, async (req, res, next) => {
+  try {
+    // Get overall messaging stats
+    const totalMessages = await prisma.message.count();
+    
+    const messagingStats = await prisma.user.aggregate({
+      _sum: {
+        messagesSent: true,
+        messagesReceived: true
+      },
+      _avg: {
+        messagesSent: true,
+        messagesReceived: true
+      },
+      _max: {
+        messagesSent: true,
+        messagesReceived: true
+      }
+    });
+    
+    // Get top senders
+    const topSenders = await prisma.user.findMany({
+      where: { messagesSent: { gt: 0 } },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        messagesSent: true,
+        messagesReceived: true,
+        createdAt: true
+      },
+      orderBy: { messagesSent: 'desc' },
+      take: 20
+    });
+    
+    // Get top receivers
+    const topReceivers = await prisma.user.findMany({
+      where: { messagesReceived: { gt: 0 } },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        messagesSent: true,
+        messagesReceived: true,
+        createdAt: true
+      },
+      orderBy: { messagesReceived: 'desc' },
+      take: 20
+    });
+    
+    // Get users with imbalanced messaging (high sent, low received)
+    const imbalancedUsers = await prisma.user.findMany({
+      where: {
+        AND: [
+          { messagesSent: { gt: 10 } },
+          { messagesReceived: { lt: 5 } }
+        ]
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        messagesSent: true,
+        messagesReceived: true,
+        createdAt: true
+      },
+      orderBy: { messagesSent: 'desc' },
+      take: 20
+    });
+    
+    // Calculate engagement metrics
+    const usersWithMessages = await prisma.user.count({
+      where: {
+        OR: [
+          { messagesSent: { gt: 0 } },
+          { messagesReceived: { gt: 0 } }
+        ]
+      }
+    });
+    
+    const totalUsers = await prisma.user.count();
+    const messagingEngagementRate = totalUsers > 0 ? Math.round((usersWithMessages / totalUsers) * 100) : 0;
+    
+    res.json({
+      summary: {
+        totalMessages: totalMessages || 0,
+        totalMessagesSent: messagingStats._sum.messagesSent || 0,
+        totalMessagesReceived: messagingStats._sum.messagesReceived || 0,
+        avgMessagesSentPerUser: messagingStats._avg.messagesSent ? Math.round(messagingStats._avg.messagesSent) : 0,
+        avgMessagesReceivedPerUser: messagingStats._avg.messagesReceived ? Math.round(messagingStats._avg.messagesReceived) : 0,
+        maxMessagesSent: messagingStats._max.messagesSent || 0,
+        maxMessagesReceived: messagingStats._max.messagesReceived || 0,
+        usersWithMessages: usersWithMessages || 0,
+        messagingEngagementRate
+      },
+      topSenders,
+      topReceivers,
+      imbalancedUsers: {
+        description: 'Users with high sent messages but low received (potential engagement issues)',
+        users: imbalancedUsers
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Get detailed messaging analytics for a specific user
+router.get('/analytics/messaging/:userId', authenticate, isAdmin, async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        messagesSent: true,
+        messagesReceived: true,
+        createdAt: true,
+        tier: true
+      }
+    });
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Get message breakdown by recipient/sender
+    const sentMessages = await prisma.message.findMany({
+      where: { senderId: userId },
+      select: {
+        id: true,
+        receiverId: true,
+        content: true,
+        pointsCost: true,
+        createdAt: true,
+        receiver: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50
+    });
+    
+    const receivedMessages = await prisma.message.findMany({
+      where: { receiverId: userId },
+      select: {
+        id: true,
+        senderId: true,
+        content: true,
+        pointsCost: true,
+        createdAt: true,
+        sender: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50
+    });
+    
+    // Count unique conversations
+    const sentConversations = new Set(sentMessages.map(m => m.receiverId)).size;
+    const receivedConversations = new Set(receivedMessages.map(m => m.senderId)).size;
+    
+    // Calculate average response time (if we have both sent and received)
+    const avgPointsCostPerMessage = sentMessages.length > 0 
+      ? Math.round(sentMessages.reduce((sum, m) => sum + m.pointsCost, 0) / sentMessages.length)
+      : 0;
+    
+    res.json({
+      user,
+      analytics: {
+        messagesSent: user.messagesSent,
+        messagesReceived: user.messagesReceived,
+        uniqueConversationsInitiated: sentConversations,
+        uniqueConversationsReceived: receivedConversations,
+        avgPointsCostPerMessage,
+        engagementRatio: user.messagesSent > 0 
+          ? (user.messagesReceived / user.messagesSent).toFixed(2)
+          : 0
+      },
+      recentSentMessages: sentMessages,
+      recentReceivedMessages: receivedMessages
     });
   } catch (err) {
     next(err);

@@ -16,7 +16,7 @@ const REPORT_TYPES = [
 // Submit a report
 router.post('/', authenticate, async (req, res, next) => {
   try {
-    const { reportedUserId, type, description } = req.body
+    const { reportedUserId, type, description, reportedContent, reportedPhotoUrl } = req.body
 
     if (!REPORT_TYPES.includes(type)) {
       return res.status(400).json({ error: 'Invalid report type' })
@@ -51,7 +51,9 @@ router.post('/', authenticate, async (req, res, next) => {
         reporterId: req.userId,
         reportedUserId,
         type,
-        description
+        description,
+        reportedContent: reportedContent || null,
+        reportedPhotoUrl: reportedPhotoUrl || null
       }
     })
 
@@ -131,7 +133,7 @@ router.get('/admin/unresolved', authenticate, async (req, res, next) => {
           select: { id: true, name: true, email: true }
         },
         reportedUser: {
-          select: { id: true, name: true, email: true, isFlagged: true }
+          select: { id: true, name: true, email: true, isFlagged: true, avatar: true, photos: true }
         }
       },
       orderBy: { createdAt: 'desc' },

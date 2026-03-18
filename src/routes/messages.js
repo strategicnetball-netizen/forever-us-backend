@@ -15,10 +15,7 @@ router.post('/send', authenticate, async (req, res, next) => {
       return res.status(400).json({ error: 'Missing receiverId or content' });
     }
     
-    // Check daily message limit
-    const limitCheck = await canMessage(prisma, req.userId);
-    
-    // Get sender info for points check
+    // Get sender's current data
     const sender = await prisma.user.findUnique({
       where: { id: req.userId },
       select: { points: true, tier: true }
@@ -28,28 +25,16 @@ router.post('/send', authenticate, async (req, res, next) => {
       return res.status(404).json({ error: 'User not found' });
     }
     
-    // If limit reached and not premium, check if they can spend coins
-    if (!limitCheck.canMessage && sender.tier !== 'premium') {
-      // Cost to bypass limit: 5 coins per message
-      const bypassCost = 5;
-      if (sender.points < bypassCost) {
-        return res.status(429).json({ 
-          error: 'Daily message limit reached. Purchase coins to continue.',
-          limitReached: true,
-          remaining: 0,
-          limit: limitCheck.limit,
-          bypassCost,
-          userPoints: sender.points
-        });
-      }
-      // User has enough coins, allow them to proceed (will deduct coins below)
-    } else if (!limitCheck.canMessage) {
-      // Premium users shouldn't hit this, but just in case
-      return res.status(429).json({ 
-        error: limitCheck.error,
-        limitReached: true,
-        remaining: limitCheck.remaining,
-        limit: limitCheck.limit
+    // Check message cost based on tier and usage
+    const limitCheck = await canMessage(prisma, req.userId);
+    let messageCost = limitCheck.costPerMessage || 0;
+    
+    // Check if user has enough coins for the message
+    if (sender.points < messageCost) {
+      return res.status(400).json({ 
+        error: `Insufficient coins. Need ${messageCost} coins to send a message.`,
+        required: messageCost,
+        available: sender.points
       });
     }
     
@@ -62,23 +47,13 @@ router.post('/send', authenticate, async (req, res, next) => {
       return res.status(404).json({ error: 'Receiver not found' });
     }
     
-    // Get points cost based on tier
-    const pointsCost = getPointsCost(sender.tier, 'message');
-    
-    // Check if user has enough points for the action itself
-    if (sender.points < pointsCost) {
-      return res.status(400).json({ 
-        error: `Insufficient points. Need ${pointsCost} points to send a message.` 
-      });
-    }
-    
     // Create message
     const message = await prisma.message.create({
       data: {
         senderId: req.userId,
         receiverId,
         content,
-        pointsCost
+        pointsCost: messageCost
       },
       include: {
         sender: {
@@ -91,22 +66,33 @@ router.post('/send', authenticate, async (req, res, next) => {
       }
     });
     
-    // Increment message counter
+    // ALWAYS increment message counter (tracks total messages used, both free and paid)
     await incrementMessageCount(prisma, req.userId);
     
-    // Deduct points if cost > 0
+    // Increment messaging analytics counters
+    await prisma.user.update({
+      where: { id: req.userId },
+      data: { messagesSent: { increment: 1 } }
+    });
+    
+    await prisma.user.update({
+      where: { id: receiverId },
+      data: { messagesReceived: { increment: 1 } }
+    });
+    
+    // Deduct coins if cost > 0 (only for messages beyond the free limit)
     let updatedUser = sender;
-    if (pointsCost > 0) {
+    if (messageCost > 0) {
       updatedUser = await prisma.user.update({
         where: { id: req.userId },
-        data: { points: { decrement: pointsCost } }
+        data: { points: { decrement: messageCost } }
       });
       
       // Record transaction
       await prisma.pointsTransaction.create({
         data: {
           userId: req.userId,
-          amount: -pointsCost,
+          amount: -messageCost,
           type: 'message_sent',
           reason: `Message to ${receiver.name}`
         }
@@ -133,7 +119,7 @@ router.post('/send', authenticate, async (req, res, next) => {
         createdAt: message.createdAt
       },
       pointsRemaining: updatedUser.points,
-      pointsCost
+      pointsCost: messageCost
     });
   } catch (err) {
     next(err);
@@ -343,5 +329,203 @@ function analyzeMessage(content, recipientName = '') {
     }
   };
 }
+
+// Send message with photo
+router.post('/send-with-photo', authenticate, async (req, res, next) => {
+  try {
+    const { receiverId, content, photoUrl } = req.body;
+    
+    if (!receiverId || (!content && !photoUrl)) {
+      return res.status(400).json({ error: 'Missing receiverId and content/photo' });
+    }
+    
+    // Check daily message limit
+    const limitCheck = await canMessage(prisma, req.userId);
+    
+    const sender = await prisma.user.findUnique({
+      where: { id: req.userId },
+      select: { points: true, tier: true }
+    });
+    
+    if (!sender) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    if (!limitCheck.canMessage && sender.tier !== 'premium') {
+      const bypassCost = 5;
+      if (sender.points < bypassCost) {
+        return res.status(429).json({ 
+          error: 'Daily message limit reached',
+          limitReached: true,
+          bypassCost,
+          userPoints: sender.points
+        });
+      }
+    } else if (!limitCheck.canMessage) {
+      return res.status(429).json({ error: limitCheck.error, limitReached: true });
+    }
+    
+    const receiver = await prisma.user.findUnique({
+      where: { id: receiverId }
+    });
+    
+    if (!receiver) {
+      return res.status(404).json({ error: 'Receiver not found' });
+    }
+    
+    const pointsCost = getPointsCost(sender.tier, 'message');
+    
+    if (sender.points < pointsCost) {
+      return res.status(400).json({ error: `Insufficient points. Need ${pointsCost} points.` });
+    }
+    
+    const message = await prisma.message.create({
+      data: {
+        senderId: req.userId,
+        receiverId,
+        content: content || '',
+        photoUrl: photoUrl || null,
+        pointsCost
+      },
+      include: {
+        sender: {
+          select: { id: true, name: true, avatar: true }
+        }
+      }
+    });
+    
+    await incrementMessageCount(prisma, req.userId);
+    
+    // Increment messaging analytics counters
+    await prisma.user.update({
+      where: { id: req.userId },
+      data: { messagesSent: { increment: 1 } }
+    });
+    
+    await prisma.user.update({
+      where: { id: receiverId },
+      data: { messagesReceived: { increment: 1 } }
+    });
+    
+    let updatedUser = sender;
+    if (pointsCost > 0) {
+      updatedUser = await prisma.user.update({
+        where: { id: req.userId },
+        data: { points: { decrement: pointsCost } }
+      });
+      
+      await prisma.pointsTransaction.create({
+        data: {
+          userId: req.userId,
+          amount: -pointsCost,
+          type: 'message_sent',
+          reason: `Message with photo to ${receiver.name}`
+        }
+      });
+    }
+    
+    const io = getIO();
+    if (io) {
+      io.emit('message:new', {
+        id: message.id,
+        content: message.content,
+        photoUrl: message.photoUrl,
+        senderId: message.senderId,
+        receiverId: message.receiverId,
+        createdAt: message.createdAt,
+        sender: message.sender
+      });
+    }
+    
+    res.status(201).json({
+      message: {
+        id: message.id,
+        content: message.content,
+        photoUrl: message.photoUrl,
+        createdAt: message.createdAt
+      },
+      pointsRemaining: updatedUser.points,
+      pointsCost
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Search messages
+router.get('/search', authenticate, async (req, res, next) => {
+  try {
+    const { query, conversationWith } = req.query;
+    
+    if (!query || query.trim().length === 0) {
+      return res.status(400).json({ error: 'Search query required' });
+    }
+    
+    const searchTerm = `%${query}%`;
+    
+    let whereClause = {
+      OR: [
+        { senderId: req.userId, content: { contains: query, mode: 'insensitive' } },
+        { receiverId: req.userId, content: { contains: query, mode: 'insensitive' } }
+      ]
+    };
+    
+    if (conversationWith) {
+      whereClause = {
+        AND: [
+          whereClause,
+          {
+            OR: [
+              { senderId: req.userId, receiverId: conversationWith },
+              { senderId: conversationWith, receiverId: req.userId }
+            ]
+          }
+        ]
+      };
+    }
+    
+    const messages = await prisma.message.findMany({
+      where: whereClause,
+      include: {
+        sender: { select: { id: true, name: true, avatar: true } },
+        receiver: { select: { id: true, name: true } }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50
+    });
+    
+    res.json(messages);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Delete message (only receiver can delete received messages)
+router.delete('/:messageId', authenticate, async (req, res, next) => {
+  try {
+    const { messageId } = req.params;
+    
+    const message = await prisma.message.findUnique({
+      where: { id: messageId }
+    });
+    
+    if (!message) {
+      return res.status(404).json({ error: 'Message not found' });
+    }
+    
+    // Only receiver can delete received messages
+    if (message.receiverId !== req.userId) {
+      return res.status(403).json({ error: 'You can only delete messages you received' });
+    }
+    
+    await prisma.message.delete({
+      where: { id: messageId }
+    });
+    
+    res.json({ success: true, message: 'Message deleted' });
+  } catch (err) {
+    next(err);
+  }
+});
 
 export default router;

@@ -224,4 +224,58 @@ router.get('/admin/history', authenticate, async (req, res, next) => {
   }
 })
 
+// Admin: Upgrade user tier (for testing)
+router.post('/upgrade-tier', authenticate, async (req, res, next) => {
+  try {
+    const admin = await prisma.user.findUnique({
+      where: { id: req.userId }
+    })
+
+    if (!admin.email.endsWith('@admin.com')) {
+      return res.status(403).json({ error: 'Admin access required' })
+    }
+
+    const { userEmail, newTier } = req.body
+
+    if (!userEmail || !newTier) {
+      return res.status(400).json({ error: 'Missing required fields: userEmail, newTier' })
+    }
+
+    const validTiers = ['free', 'premium', 'vip']
+    if (!validTiers.includes(newTier)) {
+      return res.status(400).json({ error: 'Invalid tier. Must be: free, premium, or vip' })
+    }
+
+    // Find user by email
+    const user = await prisma.user.findUnique({
+      where: { email: userEmail }
+    })
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' })
+    }
+
+    // Update user tier
+    const updatedUser = await prisma.user.update({
+      where: { id: user.id },
+      data: { tier: newTier }
+    })
+
+    console.log(`[ADMIN] Upgraded ${user.email} from ${user.tier} to ${newTier}`)
+
+    res.json({
+      success: true,
+      message: `User ${user.name} upgraded to ${newTier}`,
+      user: {
+        id: updatedUser.id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        tier: updatedUser.tier
+      }
+    })
+  } catch (err) {
+    next(err)
+  }
+})
+
 export default router

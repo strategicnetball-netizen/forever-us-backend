@@ -11,28 +11,44 @@ router.get('/can-call/:recipientId', authenticate, async (req, res, next) => {
     const { recipientId } = req.params;
     const userId = req.userId;
 
+    console.log(`[CALL PERMISSIONS] Checking permissions for caller: ${userId}, recipient: ${recipientId}`);
+
     // Get caller's tier
     const caller = await prisma.user.findUnique({
       where: { id: userId },
-      select: { tier: true }
+      select: { tier: true, trialTier: true, trialExpiresAt: true }
     });
 
     if (!caller) {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    console.log(`[CALL PERMISSIONS] Caller tier: ${caller.tier}, trialTier: ${caller.trialTier}, trialExpiresAt: ${caller.trialExpiresAt}`);
+
     // Get recipient's tier
     const recipient = await prisma.user.findUnique({
       where: { id: recipientId },
-      select: { tier: true }
+      select: { tier: true, trialTier: true, trialExpiresAt: true }
     });
 
     if (!recipient) {
       return res.status(404).json({ error: 'Recipient not found' });
     }
 
+    console.log(`[CALL PERMISSIONS] Recipient tier: ${recipient.tier}, trialTier: ${recipient.trialTier}, trialExpiresAt: ${recipient.trialExpiresAt}`);
+
+    // Calculate effective tiers
+    const isCallerTrialPremium = caller.trialTier && (caller.trialTier === 'premium' || caller.trialTier === 'vip') && new Date(caller.trialExpiresAt) > new Date();
+    const callerEffectiveTier = isCallerTrialPremium ? caller.trialTier : caller.tier;
+
+    const isRecipientTrialPremium = recipient.trialTier && (recipient.trialTier === 'premium' || recipient.trialTier === 'vip') && new Date(recipient.trialExpiresAt) > new Date();
+    const recipientEffectiveTier = isRecipientTrialPremium ? recipient.trialTier : recipient.tier;
+
+    console.log(`[CALL PERMISSIONS] Caller effective tier: ${callerEffectiveTier}, Recipient effective tier: ${recipientEffectiveTier}`);
+
     // Free members cannot make any calls
-    if (caller.tier === 'free') {
+    if (callerEffectiveTier === 'free') {
+      console.log(`[CALL PERMISSIONS] Caller is free tier - denying calls`);
       return res.json({
         canVoiceCall: false,
         canVideoCall: false,
@@ -41,7 +57,8 @@ router.get('/can-call/:recipientId', authenticate, async (req, res, next) => {
     }
 
     // Check if recipient can receive calls (only premium and vip can)
-    if (recipient.tier === 'free') {
+    if (recipientEffectiveTier === 'free') {
+      console.log(`[CALL PERMISSIONS] Recipient is free tier - denying calls`);
       return res.json({
         canVoiceCall: false,
         canVideoCall: false,
@@ -50,7 +67,8 @@ router.get('/can-call/:recipientId', authenticate, async (req, res, next) => {
     }
 
     // Premium members can only make voice calls
-    if (caller.tier === 'premium') {
+    if (callerEffectiveTier === 'premium') {
+      console.log(`[CALL PERMISSIONS] Caller is premium tier - allowing voice only`);
       return res.json({
         canVoiceCall: true,
         canVideoCall: false,
@@ -59,7 +77,8 @@ router.get('/can-call/:recipientId', authenticate, async (req, res, next) => {
     }
 
     // VIP members can make both voice and video calls
-    if (caller.tier === 'vip') {
+    if (callerEffectiveTier === 'vip') {
+      console.log(`[CALL PERMISSIONS] Caller is VIP tier - allowing voice and video`);
       return res.json({
         canVoiceCall: true,
         canVideoCall: true,
@@ -67,6 +86,7 @@ router.get('/can-call/:recipientId', authenticate, async (req, res, next) => {
       });
     }
 
+    console.log(`[CALL PERMISSIONS] Unable to determine tier - returning false`);
     return res.json({
       canVoiceCall: false,
       canVideoCall: false,
@@ -265,6 +285,65 @@ router.post('/log-call', authenticate, async (req, res, next) => {
     console.log(`Call logged: ${userId} -> ${recipientId} (${callType}, ${duration}s)`);
 
     res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Store call history
+router.post('/history', authenticate, async (req, res, next) => {
+  try {
+    const { recipientId, callType, status, duration } = req.body;
+    const userId = req.userId;
+
+    if (!recipientId || !callType || !status) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const callHistory = await prisma.callHistory.create({
+      data: {
+        callerId: userId,
+        recipientId,
+        callType,
+        status,
+        duration: duration || 0,
+        startedAt: new Date(),
+        endedAt: duration ? new Date() : null
+      }
+    });
+
+    res.status(201).json(callHistory);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Get call history for current user
+router.get('/history', authenticate, async (req, res, next) => {
+  try {
+    const userId = req.userId;
+    const limit = parseInt(req.query.limit) || 20;
+
+    const callHistory = await prisma.callHistory.findMany({
+      where: {
+        OR: [
+          { callerId: userId },
+          { recipientId: userId }
+        ]
+      },
+      include: {
+        caller: {
+          select: { id: true, name: true, avatar: true }
+        },
+        recipient: {
+          select: { id: true, name: true, avatar: true }
+        }
+      },
+      orderBy: { startedAt: 'desc' },
+      take: limit
+    });
+
+    res.json(callHistory);
   } catch (err) {
     next(err);
   }

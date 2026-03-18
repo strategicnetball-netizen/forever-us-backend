@@ -102,6 +102,33 @@ router.post('/deduct', authenticate, async (req, res, next) => {
   }
 });
 
+// Get current sign-in status (without claiming)
+router.get('/sign-in-status', authenticate, async (req, res, next) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.userId }
+    });
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Check if user has already claimed bonus today
+    const lastSignIn = user.lastSignInDate ? new Date(user.lastSignInDate) : null;
+    const lastSignInDate = lastSignIn ? new Date(lastSignIn) : null;
+    lastSignInDate?.setHours(0, 0, 0, 0);
+    
+    const alreadyClaimedToday = lastSignInDate && lastSignInDate.getTime() === today.getTime();
+    
+    res.json({
+      alreadyClaimedToday,
+      weeklySignInCount: user.weeklySignInCount || 0,
+      lastSignInDate: user.lastSignInDate
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Sign-in bonus endpoint
 router.post('/sign-in-bonus', authenticate, async (req, res, next) => {
   try {

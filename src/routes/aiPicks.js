@@ -18,6 +18,13 @@ router.get('/ai-picks', authenticate, async (req, res) => {
     })
     const likedIds = likedUsers.map(l => l.likedId)
 
+    // Get user's blocked list (users that current user has blocked)
+    const blockedUsers = await prisma.blockedUser.findMany({
+      where: { blockerId: userId },
+      select: { blockedId: true }
+    })
+    const blockedIds = blockedUsers.map(b => b.blockedId)
+
     // Check if user already has AI picks for today
     const existingPicks = await prisma.aiPick.findMany({
       where: {
@@ -41,8 +48,8 @@ router.get('/ai-picks', authenticate, async (req, res) => {
       }
     })
 
-    // Filter out any picks that have been liked since they were created
-    const availablePicks = existingPicks.filter(pick => !likedIds.includes(pick.profileId))
+    // Filter out any picks that have been liked or blocked since they were created
+    const availablePicks = existingPicks.filter(pick => !likedIds.includes(pick.profileId) && !blockedIds.includes(pick.profileId))
 
     if (availablePicks.length > 0) {
       // Return existing picks that haven't been liked yet
@@ -71,13 +78,6 @@ router.get('/ai-picks', authenticate, async (req, res) => {
       },
       take: 100
     })
-
-    // Get user's blocked list (users that current user has blocked)
-    const blockedUsers = await prisma.blockedUser.findMany({
-      where: { blockerId: userId },
-      select: { blockedId: true }
-    })
-    const blockedIds = blockedUsers.map(b => b.blockedId)
 
     // Filter out blocked and liked users
     const availableUsers = allUsers.filter(u => !blockedIds.includes(u.id) && !likedIds.includes(u.id))

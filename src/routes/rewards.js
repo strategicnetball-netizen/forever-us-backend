@@ -55,18 +55,20 @@ router.post('/claim-profile-bonus', authenticate, async (req, res, next) => {
       return res.status(400).json({ error: 'Profile bonus already claimed' })
     }
 
-    // Check if profile is complete (all 6 fields)
+    // Check if profile is complete (all 8 fields: name, age, gender, country, city, bio, photos, lookingFor)
     const completedFields = [
-      user.name,
-      user.age,
-      user.gender,
-      user.location,
-      user.bio,
-      user.photos
+      user.name && user.name.trim().length > 0,
+      user.age && user.age > 0,
+      user.gender && user.gender.trim().length > 0,
+      user.country && user.country.trim().length > 0,
+      user.city && user.city.trim().length > 0,
+      user.bio && user.bio.trim().length > 0,
+      user.photos && (typeof user.photos === 'string' ? user.photos.trim().length > 0 : Array.isArray(user.photos) && user.photos.length > 0),
+      user.lookingFor && (typeof user.lookingFor === 'string' ? user.lookingFor.trim().length > 0 : Array.isArray(user.lookingFor) && user.lookingFor.length > 0)
     ].filter(Boolean).length
 
-    if (completedFields < 6) {
-      return res.status(400).json({ error: 'Profile is not complete' })
+    if (completedFields < 8) {
+      return res.status(400).json({ error: 'Profile is not complete. Missing fields.' })
     }
 
     // Award 25 points and mark as claimed
