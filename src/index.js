@@ -4,8 +4,14 @@ import dotenv from 'dotenv';
 import { createServer } from 'http';
 import { PrismaClient } from '@prisma/client';
 import authRoutes from './routes/auth.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-dotenv.config();
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Load environment variables
+const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.env';
+dotenv.config({ path: path.join(__dirname, '..', envFile) });
 
 const app = express();
 const httpServer = createServer(app);
