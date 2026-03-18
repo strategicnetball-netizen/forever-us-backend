@@ -69,7 +69,11 @@ dotenv.config({ path: `${__dirname}/../.env` });
 
 const app = express();
 const httpServer = createServer(app);
-const prisma = new PrismaClient();
+
+// Initialize Prisma - will connect on first query
+const prisma = new PrismaClient({
+  errorFormat: 'pretty',
+});
 
 // Initialize Socket.io with prisma instance
 initializeSocket(httpServer, prisma);
