@@ -1,4 +1,4 @@
-// This is your Prisma schema file for SQLite
+// This is your Prisma schema file for PostgreSQL
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
