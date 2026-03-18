@@ -71,15 +71,26 @@ const app = express();
 const httpServer = createServer(app);
 
 // Initialize Prisma - will connect on first query
-const prisma = new PrismaClient({
-  errorFormat: 'pretty',
-});
+let prisma;
+try {
+  prisma = new PrismaClient({
+    errorFormat: 'pretty',
+  });
+  console.log('Prisma initialized successfully');
+} catch (err) {
+  console.error('Prisma initialization error:', err.message);
+  prisma = null;
+}
 
-// Initialize Socket.io with prisma instance
-initializeSocket(httpServer, prisma);
-
-// Set prisma on global scope for routes to access
-global.prisma = prisma;
+// Initialize Socket.io with prisma instance if available
+if (prisma) {
+  try {
+    initializeSocket(httpServer, prisma);
+    global.prisma = prisma;
+  } catch (err) {
+    console.error('Socket.io initialization error:', err.message);
+  }
+}
 
 // Middleware
 app.use(cors());
