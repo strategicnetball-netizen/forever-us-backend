@@ -13,6 +13,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.env';
 dotenv.config({ path: path.join(__dirname, '..', envFile) });
 
+console.log('[STARTUP] NODE_ENV:', process.env.NODE_ENV);
+console.log('[STARTUP] DATABASE_URL:', process.env.DATABASE_URL ? 'SET' : 'NOT SET');
+console.log('[STARTUP] DATABASE_URL starts with:', process.env.DATABASE_URL?.substring(0, 20));
+
 const app = express();
 const httpServer = createServer(app);
 const prisma = new PrismaClient();
