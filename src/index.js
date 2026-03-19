@@ -46,7 +46,16 @@ app.get('/api/health', (req, res) => {
 });
 
 // Routes
-app.use('/api/auth', authRoutes);
+try {
+  app.use('/api/auth', authRoutes);
+} catch (err) {
+  console.error('[STARTUP] Failed to load auth routes:', err.message);
+}
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ error: 'Not found', path: req.path });
+});
 
 // Error handling middleware
 app.use((err, req, res, next) => {
