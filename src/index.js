@@ -19,12 +19,13 @@ if (process.env.NODE_ENV !== 'production') {
   console.log('[STARTUP] Loading env file:', envPath);
   dotenv.config({ path: envPath });
 } else {
-  console.log('[STARTUP] Running in production - using Railway environment variables');
+  console.log('[STARTUP] Running in production - using environment variables');
 }
 
 console.log('[STARTUP] After dotenv - NODE_ENV:', process.env.NODE_ENV);
 console.log('[STARTUP] After dotenv - DATABASE_URL:', process.env.DATABASE_URL ? 'SET' : 'NOT SET');
 console.log('[STARTUP] DATABASE_URL starts with:', process.env.DATABASE_URL?.substring(0, 30));
+console.log('[STARTUP] JWT_SECRET:', process.env.JWT_SECRET ? 'SET' : 'NOT SET');
 
 const app = express();
 const httpServer = createServer(app);
@@ -35,10 +36,10 @@ try {
     log: ['error', 'warn'],
   });
   console.log('[STARTUP] Prisma client created successfully');
-  // Don't connect immediately - let it connect on first use
 } catch (err) {
   console.error('[STARTUP] Failed to create Prisma client:', err.message);
-  throw err;
+  console.error('[STARTUP] Error details:', err);
+  process.exit(1);
 }
 
 // Make prisma available globally for routes
@@ -58,11 +59,9 @@ app.get('/api/health', (req, res) => {
 });
 
 // Routes
-try {
-  app.use('/api/auth', authRoutes);
-} catch (err) {
-  console.error('[STARTUP] Failed to load auth routes:', err.message);
-}
+console.log('[STARTUP] Loading auth routes...');
+app.use('/api/auth', authRoutes);
+console.log('[STARTUP] Auth routes loaded successfully');
 
 // 404 handler
 app.use((req, res) => {
@@ -83,11 +82,12 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 3000;
 
 httpServer.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`[STARTUP] Server running on port ${PORT}`);
 });
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
+  console.log('[SHUTDOWN] SIGTERM received, disconnecting Prisma...');
   await prisma.$disconnect();
   process.exit(0);
 });
