@@ -9,17 +9,30 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+console.log('[STARTUP] Initial NODE_ENV:', process.env.NODE_ENV);
+console.log('[STARTUP] Initial DATABASE_URL:', process.env.DATABASE_URL ? 'SET' : 'NOT SET');
+
 // Load environment variables
 const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.env';
-dotenv.config({ path: path.join(__dirname, '..', envFile) });
+const envPath = path.join(__dirname, '..', envFile);
+console.log('[STARTUP] Loading env file:', envPath);
+dotenv.config({ path: envPath });
 
-console.log('[STARTUP] NODE_ENV:', process.env.NODE_ENV);
-console.log('[STARTUP] DATABASE_URL:', process.env.DATABASE_URL ? 'SET' : 'NOT SET');
-console.log('[STARTUP] DATABASE_URL starts with:', process.env.DATABASE_URL?.substring(0, 20));
+console.log('[STARTUP] After dotenv - NODE_ENV:', process.env.NODE_ENV);
+console.log('[STARTUP] After dotenv - DATABASE_URL:', process.env.DATABASE_URL ? 'SET' : 'NOT SET');
+console.log('[STARTUP] DATABASE_URL starts with:', process.env.DATABASE_URL?.substring(0, 30));
 
 const app = express();
 const httpServer = createServer(app);
-const prisma = new PrismaClient();
+
+let prisma;
+try {
+  prisma = new PrismaClient();
+  console.log('[STARTUP] Prisma client initialized successfully');
+} catch (err) {
+  console.error('[STARTUP] Failed to initialize Prisma:', err.message);
+  throw err;
+}
 
 // Make prisma available globally for routes
 global.prisma = prisma;
