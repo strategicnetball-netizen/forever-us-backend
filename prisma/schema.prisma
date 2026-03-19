@@ -11,7 +11,7 @@ datasource db {
 }
 
 model User {
-  id        String     @id @default(cuid())
+  id        String     @id @default(cuid()) @map("_id")
   email     String     @unique
   password  String
   name      String
@@ -127,7 +127,7 @@ model User {
 }
 
 model UserPreferences {
-  id                    String   @id @default(cuid())
+  id                    String   @id @default(cuid()) @map("_id")
   userId                String   @unique
   user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   emailNotifications    Boolean  @default(true)
@@ -142,7 +142,7 @@ model UserPreferences {
 }
 
 model PointsTransaction {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   amount    Int
@@ -155,7 +155,7 @@ model PointsTransaction {
 }
 
 model Ad {
-  id             String   @id @default(cuid())
+  id             String   @id @default(cuid()) @map("_id")
   title          String   @unique
   description    String?
   duration       Int
@@ -171,7 +171,7 @@ model Ad {
 }
 
 model AdView {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   adId      String
@@ -184,7 +184,7 @@ model AdView {
 }
 
 model Survey {
-  id           String   @id @default(cuid())
+  id           String   @id @default(cuid()) @map("_id")
   title        String   @unique
   description  String?
   rewardPoints Int
@@ -199,7 +199,7 @@ model Survey {
 }
 
 model SurveyResponse {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   surveyId  String
@@ -212,7 +212,7 @@ model SurveyResponse {
 }
 
 model Message {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   senderId  String
   sender    User     @relation("sender", fields: [senderId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   receiverId String
@@ -230,7 +230,7 @@ model Message {
 }
 
 model Like {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   likerId   String
   liker     User     @relation("liker", fields: [likerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   likedId   String
@@ -243,7 +243,7 @@ model Like {
 }
 
 model Match {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   userId    String
   user      User     @relation("userMatches", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   matchedUserId String
@@ -262,7 +262,7 @@ model Match {
 }
 
 model BlockedUser {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   blockerId String
   blocker   User     @relation("blocker", fields: [blockerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   blockedId String
@@ -275,7 +275,7 @@ model BlockedUser {
 }
 
 model Questionnaire {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   userId    String   @unique
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   answers   String
@@ -284,7 +284,7 @@ model Questionnaire {
 }
 
 model PersonalityQuestionnaire {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   userId    String   @unique
   user      User     @relation("personalityQuestionnaire", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   answers   String
@@ -294,7 +294,7 @@ model PersonalityQuestionnaire {
 }
 
 model RelationshipGoalsQuestionnaire {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   userId    String   @unique
   user      User     @relation("relationshipGoalsQuestionnaire", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   answers   String
@@ -304,7 +304,7 @@ model RelationshipGoalsQuestionnaire {
 }
 
 model LifestyleQuestionnaire {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   userId    String   @unique
   user      User     @relation("lifestyleQuestionnaire", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   answers   String
@@ -314,7 +314,7 @@ model LifestyleQuestionnaire {
 }
 
 model ValuesBelifsQuestionnaire {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   userId    String   @unique
   user      User     @relation("valuesBelifsQuestionnaire", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   answers   String
@@ -324,7 +324,7 @@ model ValuesBelifsQuestionnaire {
 }
 
 model InterestsHobbiesQuestionnaire {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   userId    String   @unique
   user      User     @relation("interestsHobbiesQuestionnaire", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   answers   String
@@ -334,7 +334,7 @@ model InterestsHobbiesQuestionnaire {
 }
 
 model MusicPersonalityQuestionnaire {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   userId    String   @unique
   user      User     @relation("musicPersonalityQuestionnaire", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   answers   String
@@ -344,7 +344,7 @@ model MusicPersonalityQuestionnaire {
 }
 
 model LifestylePreferencesQuestionnaire {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   userId    String   @unique
   user      User     @relation("lifestylePreferencesQuestionnaire", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   answers   String
@@ -354,7 +354,7 @@ model LifestylePreferencesQuestionnaire {
 }
 
 model RedFlagsQuestionnaire {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   userId    String   @unique
   user      User     @relation("redFlagsQuestionnaire", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   rawInput  String?
@@ -365,7 +365,7 @@ model RedFlagsQuestionnaire {
 }
 
 model DealBreakersQuestionnaire {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   userId    String   @unique
   user      User     @relation("dealBreakersQuestionnaire", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   rawInput  String?
@@ -376,7 +376,7 @@ model DealBreakersQuestionnaire {
 }
 
 model RedFlagsList {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   flag      String   @unique
   frequency Int      @default(0)
   topFourCount Int   @default(0)
@@ -393,7 +393,7 @@ model RedFlagsList {
 }
 
 model DealBreakersList {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   breaker   String   @unique
   frequency Int      @default(0)
   topFourCount Int   @default(0)
@@ -409,7 +409,7 @@ model DealBreakersList {
 }
 
 model QuestionnaireCompletion {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   userId    String
   user      User     @relation("questionnaireCompletions", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   type      String
@@ -425,7 +425,7 @@ model QuestionnaireCompletion {
 }
 
 model Reward {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   name      String   @unique
   description String
   pointsCost Int
@@ -441,7 +441,7 @@ model Reward {
 }
 
 model Redemption {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   rewardId  String
@@ -455,7 +455,7 @@ model Redemption {
 }
 
 model UserPremium {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   userId    String   @unique
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   unlimitedLikes Boolean @default(false)
@@ -467,7 +467,7 @@ model UserPremium {
 }
 
 model FraudAlert {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   type      String
@@ -482,7 +482,7 @@ model FraudAlert {
 }
 
 model Report {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   reporterId String
   reporter  User     @relation("reporter", fields: [reporterId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   reportedUserId String
@@ -502,7 +502,7 @@ model Report {
 }
 
 model AiPick {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   userId    String
   user      User     @relation("aiPickUser", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   profileId String
@@ -514,7 +514,7 @@ model AiPick {
 }
 
 model ThirdPartyReward {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   provider  String
@@ -527,7 +527,7 @@ model ThirdPartyReward {
 }
 
 model AdminProfile {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   userId    String   @unique
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   phone     String?
@@ -540,7 +540,7 @@ model AdminProfile {
 }
 
 model CallRequest {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   callerId  String
   caller    User     @relation("callRequester", fields: [callerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   recipientId String
@@ -557,7 +557,7 @@ model CallRequest {
 }
 
 model CallHistory {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   callerId  String
   caller    User     @relation("callHistoryCaller", fields: [callerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   recipientId String
@@ -576,7 +576,7 @@ model CallHistory {
 }
 
 model TickerMessage {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   text      String
   action    String?
   isActive  Boolean  @default(true)
@@ -589,7 +589,7 @@ model TickerMessage {
 }
 
 model AdminReward {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   adminId   String
   admin     User     @relation("adminRewards", fields: [adminId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   userId    String?
@@ -607,7 +607,7 @@ model AdminReward {
 }
 
 model UndoAction {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   actionType String
@@ -620,7 +620,7 @@ model UndoAction {
 }
 
 model Sponsor {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   name      String   @unique
   logo      String?
   website   String
@@ -636,7 +636,7 @@ model Sponsor {
 }
 
 model SponsorClick {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   sponsorId String
@@ -649,7 +649,7 @@ model SponsorClick {
 }
 
 model Referral {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   referrerId String
   referrer  User     @relation("referrer", fields: [referrerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   referredId String
@@ -666,7 +666,7 @@ model Referral {
 }
 
 model UserBadge {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   badgeType String
@@ -681,7 +681,7 @@ model UserBadge {
 }
 
 model TypingIndicator {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   conversationWith String
@@ -693,7 +693,7 @@ model TypingIndicator {
 }
 
 model UserBehavior {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   targetUserId String
@@ -706,7 +706,7 @@ model UserBehavior {
 }
 
 model Notification {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   type      String
@@ -725,7 +725,7 @@ model Notification {
 }
 
 model ProfileBoost {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   boostType String   @default("standard")
@@ -744,7 +744,7 @@ model ProfileBoost {
 
 
 model Discussion {
-  id        String     @id @default(cuid())
+  id        String     @id @default(cuid()) @map("_id")
   title     String
   content   String
   category  String     @default("general")
@@ -756,7 +756,7 @@ model Discussion {
 }
 
 model DiscussionReply {
-  id            String     @id @default(cuid())
+  id            String     @id @default(cuid()) @map("_id")
   content       String
   authorId      String
   author        User       @relation("DiscussionReplyAuthor", fields: [authorId], references: [id], onDelete: Cascade)
@@ -767,7 +767,7 @@ model DiscussionReply {
 }
 
 model Event {
-  id            String     @id @default(cuid())
+  id            String     @id @default(cuid()) @map("_id")
   title         String
   description   String?
   eventDate     DateTime
@@ -786,7 +786,7 @@ model Event {
 }
 
 model EventAttendee {
-  id        String   @id @default(cuid())
+  id        String   @id @default(cuid()) @map("_id")
   eventId   String
   event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   userId    String
