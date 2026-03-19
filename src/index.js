@@ -27,8 +27,17 @@ const httpServer = createServer(app);
 
 let prisma;
 try {
-  prisma = new PrismaClient();
+  prisma = new PrismaClient({
+    log: ['query', 'error', 'warn'],
+  });
   console.log('[STARTUP] Prisma client initialized successfully');
+  
+  // Test the connection
+  prisma.$connect().then(() => {
+    console.log('[STARTUP] Prisma connected to database successfully');
+  }).catch(err => {
+    console.error('[STARTUP] Prisma failed to connect to database:', err.message);
+  });
 } catch (err) {
   console.error('[STARTUP] Failed to initialize Prisma:', err.message);
   throw err;
@@ -60,9 +69,11 @@ app.use((req, res) => {
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('[ERROR]', err);
+  console.error('[ERROR] Stack:', err.stack);
   res.status(500).json({ 
     error: 'Internal server error',
-    message: err.message 
+    message: err.message,
+    type: err.constructor.name
   });
 });
 
