@@ -26,6 +26,8 @@ router.post('/register', async (req, res, next) => {
     const isAdmin = email === 'admin@foreverus-dating.com';
     const prisma = getPrisma();
     
+    console.log('[AUTH] Attempting to create user:', email);
+    
     const user = await prisma.user.create({
       data: {
         email,
@@ -37,6 +39,8 @@ router.post('/register', async (req, res, next) => {
         isAdmin
       }
     });
+    
+    console.log('[AUTH] User created successfully:', user.id);
     
     const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, {
       expiresIn: '7d'
@@ -56,6 +60,9 @@ router.post('/register', async (req, res, next) => {
       token
     });
   } catch (err) {
+    console.error('[AUTH] Register error:', err.message);
+    console.error('[AUTH] Error type:', err.constructor.name);
+    console.error('[AUTH] Error code:', err.code);
     next(err);
   }
 });

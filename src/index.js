@@ -32,18 +32,12 @@ const httpServer = createServer(app);
 let prisma;
 try {
   prisma = new PrismaClient({
-    log: ['query', 'error', 'warn'],
+    log: ['error', 'warn'],
   });
-  console.log('[STARTUP] Prisma client initialized successfully');
-  
-  // Test the connection
-  prisma.$connect().then(() => {
-    console.log('[STARTUP] Prisma connected to database successfully');
-  }).catch(err => {
-    console.error('[STARTUP] Prisma failed to connect to database:', err.message);
-  });
+  console.log('[STARTUP] Prisma client created successfully');
+  // Don't connect immediately - let it connect on first use
 } catch (err) {
-  console.error('[STARTUP] Failed to initialize Prisma:', err.message);
+  console.error('[STARTUP] Failed to create Prisma client:', err.message);
   throw err;
 }
 
