@@ -6,6 +6,7 @@
     "dev": "node --watch src/index.js",
     "build": "npm ci && prisma generate",
     "start": "node src/index.js",
+    "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
