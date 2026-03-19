@@ -12,11 +12,15 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 console.log('[STARTUP] Initial NODE_ENV:', process.env.NODE_ENV);
 console.log('[STARTUP] Initial DATABASE_URL:', process.env.DATABASE_URL ? 'SET' : 'NOT SET');
 
-// Load environment variables
-const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.env';
-const envPath = path.join(__dirname, '..', envFile);
-console.log('[STARTUP] Loading env file:', envPath);
-dotenv.config({ path: envPath });
+// Load environment variables only if not in production or if .env file exists
+if (process.env.NODE_ENV !== 'production') {
+  const envFile = '.env';
+  const envPath = path.join(__dirname, '..', envFile);
+  console.log('[STARTUP] Loading env file:', envPath);
+  dotenv.config({ path: envPath });
+} else {
+  console.log('[STARTUP] Running in production - using Railway environment variables');
+}
 
 console.log('[STARTUP] After dotenv - NODE_ENV:', process.env.NODE_ENV);
 console.log('[STARTUP] After dotenv - DATABASE_URL:', process.env.DATABASE_URL ? 'SET' : 'NOT SET');
