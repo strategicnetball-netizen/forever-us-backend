@@ -38,12 +38,20 @@ const httpServer = createServer(app);
 let prisma;
 try {
   console.log('[STARTUP] Creating Prisma client...');
+  console.log('[STARTUP] DATABASE_URL being used:', process.env.DATABASE_URL ? 'SET' : 'NOT SET');
   prisma = new PrismaClient({
     log: ['error', 'warn'],
     errorFormat: 'pretty',
   });
   console.log('[STARTUP] Prisma client created successfully');
   global.prisma = prisma;
+  
+  // Test connection immediately
+  prisma.$queryRaw`SELECT 1`.then(() => {
+    console.log('[STARTUP] MongoDB connection test: SUCCESS');
+  }).catch(err => {
+    console.error('[STARTUP] MongoDB connection test FAILED:', err.message);
+  });
 } catch (err) {
   console.error('[STARTUP] Failed to create Prisma client:', err.message);
   console.error('[STARTUP] Error details:', err);
