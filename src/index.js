@@ -32,6 +32,7 @@ try {
   console.log('[STARTUP] Creating Prisma client...');
   prisma = new PrismaClient({
     log: ['error', 'warn'],
+    errorFormat: 'pretty',
   });
   console.log('[STARTUP] Prisma client created successfully');
   global.prisma = prisma;

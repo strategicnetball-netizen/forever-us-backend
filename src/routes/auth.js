@@ -75,10 +75,15 @@ router.post('/login', async (req, res, next) => {
       return res.status(400).json({ error: 'Missing email or password' });
     }
     
+    console.log(`[AUTH] Login attempt for email: ${email}`);
     const prisma = getPrisma();
+    console.log('[AUTH] Prisma client obtained');
+    
     const user = await prisma.user.findUnique({
       where: { email }
     });
+    
+    console.log(`[AUTH] User lookup result: ${user ? 'found' : 'not found'}`);
     
     if (!user) {
       console.log(`[AUTH] Login failed: User not found with email: ${email}`);
@@ -121,7 +126,8 @@ router.post('/login', async (req, res, next) => {
       token
     });
   } catch (err) {
-    console.error(`[AUTH] Login error:`, err);
+    console.error(`[AUTH] Login error:`, err.message);
+    console.error(`[AUTH] Error stack:`, err.stack);
     next(err);
   }
 });
