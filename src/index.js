@@ -42,7 +42,15 @@ try {
   process.exit(1);
 }
 
-app.use(cors());
+app.use(cors({
+  origin: [
+    'https://forever-us-frontend-ten.vercel.app',
+    'https://forever-us-frontend-e4p2e3imi-foreverus-dating.vercel.app',
+    'http://localhost:5173',
+    'http://localhost:3000'
+  ],
+  credentials: true
+}));
 app.use(express.json());
 
 // Root endpoint
