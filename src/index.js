@@ -46,8 +46,8 @@ try {
   console.log('[STARTUP] Prisma client created successfully');
   global.prisma = prisma;
   
-  // Test connection immediately
-  prisma.$queryRaw`SELECT 1`.then(() => {
+  // Test connection immediately with a simple count query
+  prisma.user.count().then(() => {
     console.log('[STARTUP] MongoDB connection test: SUCCESS');
   }).catch(err => {
     console.error('[STARTUP] MongoDB connection test FAILED:', err.message);
