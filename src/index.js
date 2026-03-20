@@ -24,6 +24,14 @@ console.log('[STARTUP] After dotenv - NODE_ENV:', process.env.NODE_ENV);
 console.log('[STARTUP] After dotenv - DATABASE_URL:', process.env.DATABASE_URL ? 'SET' : 'NOT SET');
 console.log('[STARTUP] JWT_SECRET:', process.env.JWT_SECRET ? 'SET' : 'NOT SET');
 
+// Log the cluster name from DATABASE_URL to verify it's correct
+if (process.env.DATABASE_URL) {
+  const dbUrl = process.env.DATABASE_URL;
+  const clusterMatch = dbUrl.match(/@([^.]+)/);
+  const cluster = clusterMatch ? clusterMatch[1] : 'unknown';
+  console.log('[STARTUP] MongoDB Cluster:', cluster);
+}
+
 const app = express();
 const httpServer = createServer(app);
 
