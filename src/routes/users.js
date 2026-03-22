@@ -1,14 +1,22 @@
 import express from 'express';
-import { prisma } from '../index.js';
 import { authenticate } from '../middleware/auth.js';
 import { getEffectiveTier } from '../utils/constants.js';
 
 const router = express.Router();
 
+// Get prisma from global scope (set by index.js)
+const getPrisma = () => {
+  if (!global.prisma) {
+    throw new Error('Prisma client not initialized');
+  }
+  return global.prisma;
+}
+
 
 
 router.post('/browse', authenticate, async (req, res, next) => {
   try {
+    const prisma = getPrisma();
     const { minAge, maxAge, gender, location, distance, name, showAllCountries, verificationStatus, profileCompletion, lastActive } = req.body
 
     console.log('Browse filters received:', { minAge, maxAge, gender, location, distance, name, showAllCountries, verificationStatus, profileCompletion, lastActive })
@@ -135,6 +143,7 @@ router.post('/browse', authenticate, async (req, res, next) => {
 
 router.get('/browse', authenticate, async (req, res, next) => {
   try {
+    const prisma = getPrisma();
     // Get current user's country and preference
     const currentUser = await prisma.user.findUnique({
       where: { id: req.userId },
@@ -193,6 +202,7 @@ router.get('/browse', authenticate, async (req, res, next) => {
 
 router.get('/me', authenticate, async (req, res, next) => {
   try {
+    const prisma = getPrisma();
     const user = await prisma.user.findUnique({
       where: { id: req.userId },
       select: {
@@ -246,6 +256,7 @@ router.get('/me', authenticate, async (req, res, next) => {
 
 router.put('/me', authenticate, async (req, res, next) => {
   try {
+    const prisma = getPrisma();
     const { name, bio, avatar, age, gender, lookingFor, location, country, state, city, photos } = req.body;
     
     // Verify user exists
@@ -322,6 +333,7 @@ router.put('/me', authenticate, async (req, res, next) => {
 
 router.get('/:userId', authenticate, async (req, res, next) => {
   try {
+    const prisma = getPrisma();
     const { userId } = req.params;
     
     const user = await prisma.user.findUnique({
@@ -365,6 +377,7 @@ router.get('/:userId', authenticate, async (req, res, next) => {
 
 router.post('/upload-photos', authenticate, async (req, res, next) => {
   try {
+    const prisma = getPrisma();
     const { photos } = req.body;
     
     if (!Array.isArray(photos)) {
@@ -411,6 +424,7 @@ router.post('/upload-photos', authenticate, async (req, res, next) => {
 // Toggle country preference
 router.put('/preferences/country', authenticate, async (req, res, next) => {
   try {
+    const prisma = getPrisma();
     const { showAllCountries } = req.body;
 
     if (typeof showAllCountries !== 'boolean') {
@@ -439,6 +453,7 @@ router.put('/preferences/country', authenticate, async (req, res, next) => {
 // Block a user
 router.post('/:userId/block', authenticate, async (req, res, next) => {
   try {
+    const prisma = getPrisma();
     const { userId } = req.params;
 
     if (userId === req.userId) {

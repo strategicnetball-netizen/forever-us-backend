@@ -1,12 +1,20 @@
 import express from 'express';
-import { prisma } from '../index.js';
 import { authenticate } from '../middleware/auth.js';
 
 const router = express.Router();
 
+// Get prisma from global scope (set by index.js)
+const getPrisma = () => {
+  if (!global.prisma) {
+    throw new Error('Prisma client not initialized');
+  }
+  return global.prisma;
+}
+
 // Get users who liked me
 router.get('/', authenticate, async (req, res, next) => {
   try {
+    const prisma = getPrisma();
     // Get all users who liked me
     const admirers = await prisma.like.findMany({
       where: { likedId: req.userId },

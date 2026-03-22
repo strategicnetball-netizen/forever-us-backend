@@ -1,13 +1,21 @@
 import express from 'express';
-import { prisma } from '../index.js';
 import { authenticate } from '../middleware/auth.js';
 import { getPointsCost } from '../utils/constants.js';
 import { canLike, canPass, incrementLikeCount, incrementPassCount } from '../utils/dailyLimits.js';
 
 const router = express.Router();
 
+// Get prisma from global scope (set by index.js)
+const getPrisma = () => {
+  if (!global.prisma) {
+    throw new Error('Prisma client not initialized');
+  }
+  return global.prisma;
+}
+
 router.post('/:likedId', authenticate, async (req, res, next) => {
   try {
+    const prisma = getPrisma();
     const { likedId } = req.params;
     const { isAiPick } = req.body; // Flag to indicate if this is from AI picks
     
@@ -155,6 +163,7 @@ router.post('/:likedId', authenticate, async (req, res, next) => {
 
 router.get('/sent', authenticate, async (req, res, next) => {
   try {
+    const prisma = getPrisma();
     // Get list of blocked users
     let blockedIds = [];
     try {
@@ -196,6 +205,7 @@ router.get('/sent', authenticate, async (req, res, next) => {
 
 router.get('/matches', authenticate, async (req, res, next) => {
   try {
+    const prisma = getPrisma();
     const matches = await prisma.match.findMany({
       where: { userId: req.userId },
       include: {
@@ -219,6 +229,7 @@ router.get('/matches', authenticate, async (req, res, next) => {
 
 router.delete('/:likedId', authenticate, async (req, res, next) => {
   try {
+    const prisma = getPrisma();
     const { likedId } = req.params;
     
     // Try to delete the like you sent
@@ -266,6 +277,7 @@ router.delete('/:likedId', authenticate, async (req, res, next) => {
 // Undo a like (rewind) - costs points based on tier
 router.post('/:likedId/undo', authenticate, async (req, res, next) => {
   try {
+    const prisma = getPrisma();
     const { likedId } = req.params;
     
     // Check if like exists
@@ -375,6 +387,7 @@ router.post('/:likedId/undo', authenticate, async (req, res, next) => {
 // Pass on a profile - tracks pass with daily limit
 router.post('/:passedId/pass', authenticate, async (req, res, next) => {
   try {
+    const prisma = getPrisma();
     const { passedId } = req.params;
     
     if (req.userId === passedId) {

@@ -1,12 +1,20 @@
 import express from 'express'
-import { prisma } from '../index.js'
 import { authenticate } from '../middleware/auth.js'
 
 const router = express.Router()
 
+// Get prisma from global scope (set by index.js)
+const getPrisma = () => {
+  if (!global.prisma) {
+    throw new Error('Prisma client not initialized');
+  }
+  return global.prisma;
+}
+
 // Get 2 AI-picked profiles for the day
 router.get('/ai-picks', authenticate, async (req, res) => {
   try {
+    const prisma = getPrisma();
     const userId = req.userId
     const today = new Date()
     today.setHours(0, 0, 0, 0)

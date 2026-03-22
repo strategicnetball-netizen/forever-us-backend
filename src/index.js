@@ -4,6 +4,13 @@ import dotenv from 'dotenv';
 import { createServer } from 'http';
 import { PrismaClient } from '@prisma/client';
 import authRoutes from './routes/auth.js';
+import pointsRoutes from './routes/points.js';
+import likesRoutes from './routes/likes.js';
+import messagesRoutes from './routes/messages.js';
+import admirersRoutes from './routes/admirers.js';
+import matchesRoutes from './routes/matches.js';
+import aiPicksRoutes from './routes/aiPicks.js';
+import usersRoutes from './routes/users.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -84,6 +91,34 @@ console.log('[STARTUP] Loading auth routes...');
 app.use('/api/auth', authRoutes);
 console.log('[STARTUP] Auth routes loaded successfully');
 
+console.log('[STARTUP] Loading points routes...');
+app.use('/api/points', pointsRoutes);
+console.log('[STARTUP] Points routes loaded successfully');
+
+console.log('[STARTUP] Loading likes routes...');
+app.use('/api/likes', likesRoutes);
+console.log('[STARTUP] Likes routes loaded successfully');
+
+console.log('[STARTUP] Loading messages routes...');
+app.use('/api/messages', messagesRoutes);
+console.log('[STARTUP] Messages routes loaded successfully');
+
+console.log('[STARTUP] Loading admirers routes...');
+app.use('/api/admirers', admirersRoutes);
+console.log('[STARTUP] Admirers routes loaded successfully');
+
+console.log('[STARTUP] Loading matches routes...');
+app.use('/api/matches', matchesRoutes);
+console.log('[STARTUP] Matches routes loaded successfully');
+
+console.log('[STARTUP] Loading AI picks routes...');
+app.use('/api/ai-picks', aiPicksRoutes);
+console.log('[STARTUP] AI picks routes loaded successfully');
+
+console.log('[STARTUP] Loading users routes...');
+app.use('/api/users', usersRoutes);
+console.log('[STARTUP] Users routes loaded successfully');
+
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({ error: 'Not found', path: req.path });
@@ -102,8 +137,9 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 3000;
 
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`[STARTUP] Server running on port ${PORT}`);
+  console.log(`[STARTUP] Listening on 0.0.0.0:${PORT}`);
 });
 
 // Graceful shutdown

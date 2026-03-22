@@ -1,5 +1,4 @@
 import express from 'express';
-import { prisma } from '../index.js';
 import { authenticate } from '../middleware/auth.js';
 import { getPointsCost } from '../utils/constants.js';
 import { canMessage, incrementMessageCount } from '../utils/dailyLimits.js';
@@ -7,8 +6,17 @@ import { getIO } from '../services/socketService.js';
 
 const router = express.Router();
 
+// Get prisma from global scope (set by index.js)
+const getPrisma = () => {
+  if (!global.prisma) {
+    throw new Error('Prisma client not initialized');
+  }
+  return global.prisma;
+}
+
 router.post('/send', authenticate, async (req, res, next) => {
   try {
+    const prisma = getPrisma();
     const { receiverId, content } = req.body;
     
     if (!receiverId || !content) {
@@ -128,6 +136,7 @@ router.post('/send', authenticate, async (req, res, next) => {
 
 router.get('/inbox', authenticate, async (req, res, next) => {
   try {
+    const prisma = getPrisma();
     const messages = await prisma.message.findMany({
       where: { receiverId: req.userId },
       include: {
@@ -150,6 +159,7 @@ router.get('/inbox', authenticate, async (req, res, next) => {
 
 router.get('/sent', authenticate, async (req, res, next) => {
   try {
+    const prisma = getPrisma();
     const messages = await prisma.message.findMany({
       where: { senderId: req.userId },
       include: {
@@ -188,6 +198,7 @@ router.post('/analyze', authenticate, async (req, res, next) => {
 // Mark message as read
 router.put('/:messageId/read', authenticate, async (req, res, next) => {
   try {
+    const prisma = getPrisma();
     const { messageId } = req.params;
     
     // Verify the user is the receiver
@@ -333,6 +344,7 @@ function analyzeMessage(content, recipientName = '') {
 // Send message with photo
 router.post('/send-with-photo', authenticate, async (req, res, next) => {
   try {
+    const prisma = getPrisma();
     const { receiverId, content, photoUrl } = req.body;
     
     if (!receiverId || (!content && !photoUrl)) {
@@ -455,6 +467,7 @@ router.post('/send-with-photo', authenticate, async (req, res, next) => {
 // Search messages
 router.get('/search', authenticate, async (req, res, next) => {
   try {
+    const prisma = getPrisma();
     const { query, conversationWith } = req.query;
     
     if (!query || query.trim().length === 0) {
@@ -503,6 +516,7 @@ router.get('/search', authenticate, async (req, res, next) => {
 // Delete message (only receiver can delete received messages)
 router.delete('/:messageId', authenticate, async (req, res, next) => {
   try {
+    const prisma = getPrisma();
     const { messageId } = req.params;
     
     const message = await prisma.message.findUnique({

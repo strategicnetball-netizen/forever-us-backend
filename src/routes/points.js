@@ -1,11 +1,19 @@
 import express from 'express';
-import { prisma } from '../index.js';
 import { authenticate } from '../middleware/auth.js';
 
 const router = express.Router();
 
+// Get prisma from global scope (set by index.js)
+const getPrisma = () => {
+  if (!global.prisma) {
+    throw new Error('Prisma client not initialized');
+  }
+  return global.prisma;
+}
+
 router.get('/balance', authenticate, async (req, res, next) => {
   try {
+    const prisma = getPrisma();
     const user = await prisma.user.findUnique({
       where: { id: req.userId },
       select: { points: true }
@@ -19,6 +27,7 @@ router.get('/balance', authenticate, async (req, res, next) => {
 
 router.get('/history', authenticate, async (req, res, next) => {
   try {
+    const prisma = getPrisma();
     const transactions = await prisma.pointsTransaction.findMany({
       where: { userId: req.userId },
       orderBy: { createdAt: 'desc' },
@@ -34,6 +43,7 @@ router.get('/history', authenticate, async (req, res, next) => {
 // Internal endpoint to add points (called by job processors)
 router.post('/add', authenticate, async (req, res, next) => {
   try {
+    const prisma = getPrisma();
     const { amount, type, reason } = req.body;
     
     if (!amount || !type) {
@@ -65,6 +75,7 @@ router.post('/add', authenticate, async (req, res, next) => {
 // Internal endpoint to deduct points
 router.post('/deduct', authenticate, async (req, res, next) => {
   try {
+    const prisma = getPrisma();
     const { amount, type, reason } = req.body;
     
     if (!amount || !type) {
@@ -105,6 +116,7 @@ router.post('/deduct', authenticate, async (req, res, next) => {
 // Get current sign-in status (without claiming)
 router.get('/sign-in-status', authenticate, async (req, res, next) => {
   try {
+    const prisma = getPrisma();
     const user = await prisma.user.findUnique({
       where: { id: req.userId }
     });
@@ -132,6 +144,7 @@ router.get('/sign-in-status', authenticate, async (req, res, next) => {
 // Sign-in bonus endpoint
 router.post('/sign-in-bonus', authenticate, async (req, res, next) => {
   try {
+    const prisma = getPrisma();
     const user = await prisma.user.findUnique({
       where: { id: req.userId }
     });

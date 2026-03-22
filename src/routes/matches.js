@@ -1,12 +1,20 @@
 import express from 'express'
-import { prisma } from '../index.js'
 import { authenticate } from '../middleware/auth.js'
 
 const router = express.Router()
 
+// Get prisma from global scope (set by index.js)
+const getPrisma = () => {
+  if (!global.prisma) {
+    throw new Error('Prisma client not initialized');
+  }
+  return global.prisma;
+}
+
 // Get all matches for current user
 router.get('/', authenticate, async (req, res) => {
   try {
+    const prisma = getPrisma();
     const userId = req.userId
 
     // Get matches where user is either side
