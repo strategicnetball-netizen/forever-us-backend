@@ -11,6 +11,7 @@ import admirersRoutes from './routes/admirers.js';
 import matchesRoutes from './routes/matches.js';
 import aiPicksRoutes from './routes/aiPicks.js';
 import usersRoutes from './routes/users.js';
+import intimatePreferencesRoutes from './routes/intimatePreferences.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -118,6 +119,10 @@ console.log('[STARTUP] AI picks routes loaded successfully');
 console.log('[STARTUP] Loading users routes...');
 app.use('/api/users', usersRoutes);
 console.log('[STARTUP] Users routes loaded successfully');
+
+console.log('[STARTUP] Loading intimate preferences routes...');
+app.use('/api/intimate-preferences', intimatePreferencesRoutes);
+console.log('[STARTUP] Intimate preferences routes loaded successfully');
 
 // 404 handler
 app.use((req, res) => {
