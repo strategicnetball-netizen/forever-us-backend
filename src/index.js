@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { createServer } from 'http';
-import { prisma } from './prisma.js';
+import { PrismaClient } from '@prisma/client';
 import authRoutes from './routes/auth.js';
 import pointsRoutes from './routes/points.js';
 import likesRoutes from './routes/likes.js';
@@ -42,6 +42,10 @@ if (process.env.DATABASE_URL) {
 
 const app = express();
 const httpServer = createServer(app);
+
+// Initialize Prisma and attach to global scope
+const prisma = new PrismaClient();
+global.prisma = prisma;
 
 app.use(cors({
   origin: [
@@ -127,8 +131,8 @@ httpServer.listen(PORT, '0.0.0.0', () => {
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   console.log('[SHUTDOWN] SIGTERM received');
-  if (prisma) {
-    await prisma.$disconnect();
+  if (global.prisma) {
+    await global.prisma.$disconnect();
   }
   process.exit(0);
 });
