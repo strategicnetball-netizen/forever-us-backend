@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { createServer } from 'http';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from './prisma.js';
 import authRoutes from './routes/auth.js';
 import pointsRoutes from './routes/points.js';
 import likesRoutes from './routes/likes.js';
@@ -42,32 +42,6 @@ if (process.env.DATABASE_URL) {
 
 const app = express();
 const httpServer = createServer(app);
-
-let prisma;
-try {
-  console.log('[STARTUP] Creating Prisma client...');
-  console.log('[STARTUP] DATABASE_URL being used:', process.env.DATABASE_URL ? 'SET' : 'NOT SET');
-  prisma = new PrismaClient({
-    log: ['error', 'warn'],
-    errorFormat: 'pretty',
-  });
-  console.log('[STARTUP] Prisma client created successfully');
-  global.prisma = prisma;
-  
-  // Test connection immediately with a simple count query
-  prisma.user.count().then(() => {
-    console.log('[STARTUP] MongoDB connection test: SUCCESS');
-  }).catch(err => {
-    console.error('[STARTUP] MongoDB connection test FAILED:', err.message);
-  });
-} catch (err) {
-  console.error('[STARTUP] Failed to create Prisma client:', err.message);
-  console.error('[STARTUP] Error details:', err);
-  process.exit(1);
-}
-
-// Export prisma immediately after creation so routes can import it
-export { prisma };
 
 app.use(cors({
   origin: [
