@@ -66,6 +66,9 @@ try {
   process.exit(1);
 }
 
+// Export prisma immediately after creation so routes can import it
+export { prisma };
+
 app.use(cors({
   origin: [
     'https://forever-us-frontend-ten.vercel.app',
