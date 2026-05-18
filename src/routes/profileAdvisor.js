@@ -1,13 +1,21 @@
 import express from 'express'
-import { prisma } from '../index.js'
 import { authenticate } from '../middleware/auth.js'
 
 const router = express.Router()
+
+// Get prisma from global scope (set by index.js)
+const getPrisma = () => {
+  if (!global.prisma) {
+    throw new Error('Prisma client not initialized');
+  }
+  return global.prisma;
+}
 
 // Calculate profile health score
 router.get('/health-score/:userId', authenticate, async (req, res, next) => {
   try {
     const { userId } = req.params
+    const prisma = getPrisma()
 
     // Get user profile data
     const user = await prisma.user.findUnique({
@@ -21,17 +29,41 @@ router.get('/health-score/:userId', authenticate, async (req, res, next) => {
       return res.status(404).json({ error: 'User not found' })
     }
 
-    // Return a simple score for now
+    // Get user photos from the photos JSON field
+    let photos = []
+    if (user.photos) {
+      try {
+        photos = typeof user.photos === 'string' ? JSON.parse(user.photos) : user.photos
+        if (!Array.isArray(photos)) photos = []
+      } catch (e) {
+        photos = []
+      }
+    }
+
+    // Calculate individual scores
+    const completenessScore = calculateCompletenessScore(user, photos)
+    const engagementScore = calculateEngagementScore(user, photos)
+    const authenticityScore = calculateAuthenticityScore(user, photos)
+    const clarityScore = calculateClarityScore(user)
+    const optimizationScore = calculateOptimizationScore(user)
+
+    // Calculate overall score (average of all scores)
+    const overallScore = Math.round(
+      (completenessScore + engagementScore + authenticityScore + clarityScore + optimizationScore) / 5
+    )
+
+    const tier = getScoreTier(overallScore)
+
     res.json({
-      overallScore: 65,
+      overallScore,
       scores: {
-        completeness: 70,
-        engagement: 60,
-        authenticity: 65,
-        clarity: 60,
-        optimization: 65
+        completeness: completenessScore,
+        engagement: engagementScore,
+        authenticity: authenticityScore,
+        clarity: clarityScore,
+        optimization: optimizationScore
       },
-      tier: 'Good'
+      tier
     })
   } catch (err) {
     next(err)
@@ -42,6 +74,7 @@ router.get('/health-score/:userId', authenticate, async (req, res, next) => {
 router.get('/advice/:userId', authenticate, async (req, res, next) => {
   try {
     const { userId } = req.params
+    const prisma = getPrisma()
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -54,20 +87,23 @@ router.get('/advice/:userId', authenticate, async (req, res, next) => {
       return res.status(404).json({ error: 'User not found' })
     }
 
-    // Return basic advice for now
+    // Get user photos from the photos JSON field
+    let photos = []
+    if (user.photos) {
+      try {
+        photos = typeof user.photos === 'string' ? JSON.parse(user.photos) : user.photos
+        if (!Array.isArray(photos)) photos = []
+      } catch (e) {
+        photos = []
+      }
+    }
+
+    // Generate dynamic advice based on user data
     const advice = {
-      photos: [
-        { type: 'info', title: 'Add More Photos', message: 'Upload more photos to increase engagement', action: 'Add 2-3 more photos' }
-      ],
-      bio: [
-        { type: 'info', title: 'Expand Your Bio', message: 'Write a more detailed bio about yourself', action: 'Add more personality to your bio' }
-      ],
-      questionnaire: [
-        { type: 'info', title: 'Complete Questionnaire', message: 'Answer all 20 questions for better matches', action: 'Complete your questionnaire' }
-      ],
-      general: [
-        { type: 'success', title: 'Great Start', message: 'Your profile is looking good!', action: null }
-      ]
+      photos: getPhotoAdvice(user, photos),
+      bio: getBioAdvice(user),
+      questionnaire: getQuestionnaireAdvice(user),
+      general: getGeneralAdvice(user, photos)
     }
 
     res.json(advice)
@@ -85,7 +121,7 @@ function calculateCompletenessScore(user, photos) {
   if (user.name) score += 10
   if (user.age) score += 10
   if (user.gender) score += 10
-  if (user.city) score += 10
+  if (user.location || user.city) score += 10
 
   // Bio (20 points)
   if (user.bio && user.bio.length > 50) score += 20
@@ -327,8 +363,60 @@ function getBioAdvice(user) {
     })
   }
 
-  // Interests advice
-  const interestKeywords = ['travel', 'hiking', 'cooking', 'reading', 'sports', 'music', 'art', 'fitness', 'gaming', 'movies']
+  // Interests advice - expanded keyword list
+  const interestKeywords = [
+    'travel', 'hiking', 'cooking', 'reading', 'sports', 'music', 'art', 'fitness', 'gaming', 'movies',
+    'photography', 'dance', 'yoga', 'swimming', 'cycling', 'running', 'tennis', 'golf', 'soccer', 'basketball',
+    'volleyball', 'painting', 'drawing', 'writing', 'singing', 'guitar', 'piano', 'drums', 'theater', 'comedy',
+    'wine', 'beer', 'coffee', 'tea', 'gardening', 'plants', 'nature', 'outdoors', 'camping', 'kayaking',
+    'surfing', 'skiing', 'snowboarding', 'rock climbing', 'meditation', 'spirituality', 'volunteering',
+    'animals', 'dogs', 'cats', 'pets', 'fashion', 'design', 'architecture', 'history', 'science', 'technology',
+    'coding', 'programming', 'business', 'entrepreneurship', 'cooking', 'baking', 'food', 'cuisine',
+    'travel', 'adventure', 'explore', 'discover', 'learn', 'education', 'books', 'podcast', 'documentary',
+    'film', 'series', 'tv', 'netflix', 'anime', 'manga', 'comic', 'superhero', 'fantasy', 'sci-fi',
+    'horror', 'thriller', 'romance', 'drama', 'comedy', 'action', 'adventure', 'mystery', 'crime',
+    'wellness', 'health', 'nutrition', 'diet', 'exercise', 'gym', 'crossfit', 'pilates', 'martial arts',
+    'boxing', 'mma', 'wrestling', 'judo', 'karate', 'taekwondo', 'fencing', 'archery', 'shooting',
+    'motorsports', 'racing', 'cars', 'motorcycles', 'bikes', 'skateboarding', 'rollerblading', 'ice skating',
+    'hockey', 'lacrosse', 'cricket', 'rugby', 'american football', 'baseball', 'softball', 'badminton',
+    'squash', 'table tennis', 'bowling', 'billiards', 'darts', 'chess', 'board games', 'card games',
+    'puzzles', 'trivia', 'quiz', 'debate', 'public speaking', 'improv', 'standup', 'magic', 'illusion',
+    'crafts', 'diy', 'woodworking', 'metalworking', 'jewelry', 'pottery', 'ceramics', 'sculpture',
+    'photography', 'videography', 'filmmaking', 'editing', 'animation', 'graphic design', 'web design',
+    'fashion design', 'interior design', 'landscape design', 'urban planning', 'architecture',
+    'cooking', 'baking', 'pastry', 'molecular gastronomy', 'food science', 'nutrition', 'dietetics',
+    'sommelier', 'mixology', 'bartending', 'coffee roasting', 'tea ceremony', 'chocolate making',
+    'cheese making', 'fermentation', 'pickling', 'canning', 'preserving', 'foraging', 'farming',
+    'agriculture', 'horticulture', 'botany', 'ecology', 'environmental', 'conservation', 'sustainability',
+    'renewable energy', 'solar', 'wind', 'green', 'eco-friendly', 'organic', 'vegan', 'vegetarian',
+    'zero waste', 'minimalism', 'decluttering', 'organizing', 'productivity', 'time management',
+    'personal development', 'self-improvement', 'coaching', 'mentoring', 'leadership', 'management',
+    'entrepreneurship', 'startup', 'investing', 'finance', 'cryptocurrency', 'blockchain', 'nft',
+    'artificial intelligence', 'machine learning', 'data science', 'cybersecurity', 'hacking', 'ethical hacking',
+    'web development', 'app development', 'game development', 'vr', 'ar', 'metaverse', 'nft', 'defi',
+    'cryptocurrency', 'bitcoin', 'ethereum', 'trading', 'forex', 'stocks', 'bonds', 'real estate',
+    'property', 'construction', 'renovation', 'home improvement', 'interior design', 'feng shui',
+    'astrology', 'tarot', 'numerology', 'palmistry', 'crystal', 'chakra', 'reiki', 'acupuncture',
+    'herbal medicine', 'homeopathy', 'naturopathy', 'ayurveda', 'traditional medicine', 'holistic',
+    'psychology', 'therapy', 'counseling', 'coaching', 'life coaching', 'career coaching', 'dating coach',
+    'relationship', 'marriage', 'family', 'parenting', 'childcare', 'education', 'tutoring', 'mentoring',
+    'language learning', 'linguistics', 'translation', 'interpretation', 'communication', 'public speaking',
+    'debate', 'rhetoric', 'writing', 'journalism', 'blogging', 'content creation', 'social media',
+    'influencer', 'marketing', 'advertising', 'branding', 'pr', 'communications', 'media', 'entertainment',
+    'music production', 'sound engineering', 'audio', 'acoustics', 'concert', 'festival', 'live performance',
+    'dj', 'producer', 'composer', 'conductor', 'orchestra', 'band', 'ensemble', 'choir', 'acapella',
+    'karaoke', 'open mic', 'jam session', 'collaboration', 'networking', 'community', 'volunteering',
+    'charity', 'nonprofit', 'activism', 'social justice', 'politics', 'government', 'law', 'legal',
+    'justice', 'human rights', 'civil rights', 'equality', 'diversity', 'inclusion', 'lgbtq', 'feminism',
+    'masculinity', 'gender studies', 'sociology', 'anthropology', 'archaeology', 'paleontology',
+    'geology', 'mineralogy', 'astronomy', 'astrophysics', 'cosmology', 'physics', 'chemistry',
+    'biology', 'genetics', 'microbiology', 'marine biology', 'ornithology', 'entomology', 'zoology',
+    'veterinary', 'animal care', 'wildlife', 'conservation', 'safari', 'birdwatching', 'whale watching',
+    'scuba diving', 'snorkeling', 'freediving', 'underwater', 'marine', 'ocean', 'beach', 'island',
+    'tropical', 'desert', 'mountain', 'forest', 'jungle', 'rainforest', 'tundra', 'arctic', 'antarctica',
+    'volcano', 'cave', 'canyon', 'waterfall', 'river', 'lake', 'glacier', 'national park', 'hiking trail'
+  ]
+  
   const mentionedInterests = interestKeywords.filter(keyword => user.bio.toLowerCase().includes(keyword)).length
 
   if (mentionedInterests === 0) {
@@ -360,19 +448,24 @@ function getBioAdvice(user) {
 function getQuestionnaireAdvice(user) {
   const advice = []
 
-  if (!user.questionnaire) {
+  if (!user.questionnaire || !user.questionnaire.answers) {
     advice.push({
       type: 'critical',
       title: 'Complete Questionnaire',
-      message: 'You haven\'t completed the questionnaire. Detailed answers get 2x more engagement!',
-      action: 'Complete all 20 questionnaire questions'
+      message: 'Answer all 20 questions for better matches',
+      action: 'Complete your questionnaire'
     })
     return advice
   }
 
   try {
-    const answers = JSON.parse(user.questionnaire.answers)
-    const answeredCount = Object.keys(answers).length
+    const answers = typeof user.questionnaire.answers === 'string' 
+      ? JSON.parse(user.questionnaire.answers)
+      : user.questionnaire.answers
+    
+    const answeredCount = Object.keys(answers).filter(key => answers[key] && (Array.isArray(answers[key]) ? answers[key].length > 0 : answers[key].toString().trim().length > 0)).length
+
+    console.log(`[ProfileAdvisor] User ${user.id} questionnaire: ${answeredCount}/20 answers`)
 
     if (answeredCount < 20) {
       advice.push({
@@ -381,19 +474,14 @@ function getQuestionnaireAdvice(user) {
         message: `You've answered ${answeredCount}/20 questions. Complete all for better matches.`,
         action: `Answer the remaining ${20 - answeredCount} questions`
       })
-    } else {
-      advice.push({
-        type: 'success',
-        title: 'Questionnaire Complete',
-        message: 'You\'ve completed all 20 questions. Great!',
-        action: null
-      })
+      return advice // Return early if questionnaire is incomplete
     }
 
-    // Check for thoughtful answers
+    // Only check for thoughtful answers if questionnaire is complete
     let thoughtfulCount = 0
     Object.values(answers).forEach(answer => {
       if (typeof answer === 'string' && answer.length > 20) thoughtfulCount++
+      else if (Array.isArray(answer) && answer.length > 0) thoughtfulCount++
     })
 
     if (thoughtfulCount < 5) {
@@ -403,15 +491,9 @@ function getQuestionnaireAdvice(user) {
         message: 'Your answers could be more detailed. Show your personality!',
         action: 'Review and expand your text answers with more personality'
       })
-    } else {
-      advice.push({
-        type: 'success',
-        title: 'Thoughtful Answers',
-        message: 'Your answers are detailed and show personality. Excellent!',
-        action: null
-      })
     }
   } catch (e) {
+    console.error('Error parsing questionnaire:', e)
     advice.push({
       type: 'warning',
       title: 'Questionnaire Issue',
@@ -426,14 +508,24 @@ function getQuestionnaireAdvice(user) {
 function getGeneralAdvice(user, photos) {
   const advice = []
 
-  // Profile completeness
-  const completenessScore = calculateCompletenessScore(user, photos)
-  if (completenessScore < 60) {
+  // Check if basic profile is complete (name, age, gender, location, bio)
+  const hasBasicInfo = user.name && user.age && user.gender && (user.location || user.city) && user.bio
+
+  // Only warn about incomplete profile if missing basic info
+  if (!hasBasicInfo) {
     advice.push({
       type: 'warning',
       title: 'Complete Your Profile',
       message: 'Your profile is incomplete. Complete profiles get 3x more engagement.',
-      action: 'Fill in all profile fields: name, age, gender, location, bio, photos'
+      action: 'Fill in all profile fields: name, age, gender, location, bio'
+    })
+  } else if (photos.length === 0) {
+    // If basic info is complete but no photos, suggest adding photos
+    advice.push({
+      type: 'info',
+      title: 'Add Photos',
+      message: 'Photos are essential! Members with photos get 5x more engagement.',
+      action: 'Upload at least 3-4 photos to your profile'
     })
   }
 

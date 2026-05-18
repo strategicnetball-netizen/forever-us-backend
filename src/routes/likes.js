@@ -1,8 +1,8 @@
 import express from 'express';
-import { prisma } from '../index.js';
+import { prisma } from '../prisma.js';
 import { authenticate } from '../middleware/auth.js';
 import { getPointsCost } from '../utils/constants.js';
-import { canLike, incrementLikeCount } from '../utils/dailyLimits.js';
+import { canLike, canPass, incrementLikeCount, incrementPassCount } from '../utils/dailyLimits.js';
 
 const router = express.Router();
 
@@ -360,6 +360,54 @@ router.post('/:likedId/undo', authenticate, async (req, res, next) => {
     });
   } catch (err) {
     console.error('Undo like error:', err);
+    next(err);
+  }
+});
+
+// Pass on a profile - tracks pass with daily limit
+router.post('/:passedId/pass', authenticate, async (req, res, next) => {
+  try {
+    const { passedId } = req.params;
+    
+    if (req.userId === passedId) {
+      return res.status(400).json({ error: 'Cannot pass on yourself' });
+    }
+    
+    // Check daily pass limit
+    const limitCheck = await canPass(prisma, req.userId);
+    if (!limitCheck.canPass) {
+      return res.status(429).json({ 
+        error: limitCheck.error,
+        limitReached: true,
+        remaining: limitCheck.remaining,
+        limit: limitCheck.limit
+      });
+    }
+    
+    // Increment pass counter
+    await incrementPassCount(prisma, req.userId);
+    
+    // Record pass action in UserBehavior
+    try {
+      await prisma.userBehavior.create({
+        data: {
+          userId: req.userId,
+          targetUserId: passedId,
+          actionType: 'pass'
+        }
+      });
+    } catch (behaviorErr) {
+      console.error('Error recording pass behavior:', behaviorErr);
+      // Continue anyway - pass was recorded in counter
+    }
+    
+    res.json({ 
+      success: true, 
+      message: 'Passed on profile',
+      remaining: limitCheck.remaining - 1
+    });
+  } catch (err) {
+    console.error('Pass endpoint error:', err);
     next(err);
   }
 });

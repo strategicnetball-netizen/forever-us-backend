@@ -1,5 +1,5 @@
 import express from 'express';
-import { prisma } from '../index.js';
+import { prisma } from '../prisma.js';
 import { authenticate } from '../middleware/auth.js';
 import { getEffectiveTier } from '../utils/constants.js';
 
@@ -18,8 +18,18 @@ router.post('/browse', authenticate, async (req, res, next) => {
     })
     const likedIds = likedUsers.map(like => like.likedId)
 
+    // Get list of users already passed on by current user
+    const passedUsers = await prisma.userBehavior.findMany({
+      where: { 
+        userId: req.userId,
+        actionType: 'pass'
+      },
+      select: { targetUserId: true }
+    })
+    const passedIds = passedUsers.map(pass => pass.targetUserId)
+
     const where = {
-      id: { notIn: [req.userId, ...likedIds] }
+      id: { notIn: [req.userId, ...likedIds, ...passedIds] }
     }
 
     // Age filter - ensure we have valid numbers
@@ -85,11 +95,20 @@ router.get('/browse', authenticate, async (req, res, next) => {
     });
     const likedIds = likedUsers.map(like => like.likedId);
 
+    // Get list of users already passed on by current user
+    const passedUsers = await prisma.userBehavior.findMany({
+      where: { 
+        userId: req.userId,
+        actionType: 'pass'
+      },
+      select: { targetUserId: true }
+    });
+    const passedIds = passedUsers.map(pass => pass.targetUserId);
+
     const users = await prisma.user.findMany({
       where: {
         id: { 
-          not: req.userId,
-          notIn: likedIds
+          notIn: [req.userId, ...likedIds, ...passedIds]
         }
       },
       select: {

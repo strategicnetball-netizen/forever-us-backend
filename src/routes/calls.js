@@ -1,5 +1,5 @@
 import express from 'express';
-import { prisma } from '../index.js';
+import { prisma } from '../prisma.js';
 import { authenticate } from '../middleware/auth.js';
 import { getIO, getActiveUsers } from '../services/socketService.js';
 

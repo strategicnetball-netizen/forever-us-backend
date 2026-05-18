@@ -40,6 +40,8 @@ import outcomesRoutes from './routes/outcomes.js';
 import limitsRoutes from './routes/limits.js';
 import notificationsRoutes from './routes/notifications.js';
 import matchExpirationRoutes from './routes/matchExpiration.js';
+import optionalQuestionnairesRoutes from './routes/optionalQuestionnaires.js';
+import intimatePreferencesRoutes from './routes/intimatePreferences.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
 dotenv.config();
@@ -96,14 +98,23 @@ app.use('/api/outcomes', outcomesRoutes);
 app.use('/api/limits', limitsRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/match-expiration', matchExpirationRoutes);
+app.use('/api/optional-questionnaires', optionalQuestionnairesRoutes);
+app.use('/api/intimate-preferences', intimatePreferencesRoutes);
 
 // Error handling
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
 
-httpServer.listen(PORT, () => {
+const server = httpServer.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+});
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use`);
+    process.exit(1);
+  }
 });
 
 export { prisma };

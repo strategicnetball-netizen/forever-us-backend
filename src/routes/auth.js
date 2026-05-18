@@ -1,10 +1,18 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { prisma } from '../index.js';
+import { authenticate } from '../middleware/auth.js';
 import { POINTS_CONFIG, getEffectiveTier } from '../utils/constants.js';
 
 const router = express.Router();
+
+// Get prisma from global scope (set by index.js)
+const getPrisma = () => {
+  if (!global.prisma) {
+    throw new Error('Prisma client not initialized');
+  }
+  return global.prisma;
+}
 
 router.post('/register', async (req, res, next) => {
   try {
@@ -16,6 +24,7 @@ router.post('/register', async (req, res, next) => {
     
     const hashedPassword = await bcrypt.hash(password, 10);
     const isAdmin = email.endsWith('@admin.com');
+    const prisma = getPrisma();
     
     const user = await prisma.user.create({
       data: {
@@ -37,6 +46,7 @@ router.post('/register', async (req, res, next) => {
         id: user.id,
         email: user.email,
         name: user.name,
+        profileCompleted: user.profileCompleted,
         points: user.points,
         tier: user.tier,
         isAdmin: user.isAdmin
@@ -56,6 +66,7 @@ router.post('/login', async (req, res, next) => {
       return res.status(400).json({ error: 'Missing email or password' });
     }
     
+    const prisma = getPrisma();
     const user = await prisma.user.findUnique({
       where: { email }
     });
@@ -81,6 +92,12 @@ router.post('/login', async (req, res, next) => {
         id: user.id,
         email: user.email,
         name: user.name,
+        age: user.age,
+        gender: user.gender,
+        lookingFor: user.lookingFor,
+        location: user.location,
+        bio: user.bio,
+        profileCompleted: user.profileCompleted,
         points: user.points,
         tier: user.tier,
         effectiveTier,
@@ -91,6 +108,57 @@ router.post('/login', async (req, res, next) => {
       token
     });
   } catch (err) {
+    next(err);
+  }
+});
+
+router.put('/profile', authenticate, async (req, res, next) => {
+  try {
+    const { age, gender, lookingFor, location, bio, profileCompleted } = req.body;
+    
+    console.log('[Auth] PUT /profile called with:', { age, gender, lookingFor, location, bio, profileCompleted, userId: req.userId })
+    
+    if (!age || !gender || !lookingFor || !location || !bio) {
+      console.log('[Auth] Missing required fields')
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const prisma = getPrisma();
+    const user = await prisma.user.update({
+      where: { id: req.userId },
+      data: {
+        age: parseInt(age),
+        gender,
+        lookingFor,
+        location,
+        bio,
+        profileCompleted: profileCompleted === true
+      }
+    });
+
+    console.log('[Auth] Profile updated successfully for user:', user.id)
+
+    const effectiveTier = getEffectiveTier(user);
+
+    res.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        age: user.age,
+        gender: user.gender,
+        lookingFor: user.lookingFor,
+        location: user.location,
+        bio: user.bio,
+        profileCompleted: user.profileCompleted,
+        points: user.points,
+        tier: user.tier,
+        effectiveTier,
+        isAdmin: user.isAdmin
+      }
+    });
+  } catch (err) {
+    console.error('[Auth] Error updating profile:', err)
     next(err);
   }
 });

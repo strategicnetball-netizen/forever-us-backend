@@ -26,8 +26,10 @@ model User {
   isPaused Boolean @default(false) // User has paused their profile
   pausedUntil DateTime? // When the pause ends
   lastActivityDate DateTime? // Last time user was active
+  profileCompleted Boolean @default(false) // Has user completed basic profile info (age, location, bio, gender)
   age       Int?
   gender    String?
+  lookingFor String?
   location  String?
   country   String?
   state     String?
@@ -38,6 +40,8 @@ model User {
   trialExpiresAt DateTime? // when trial tier expires
   likesUsedToday Int @default(0) // Daily like counter
   lastLikeResetDate DateTime? // Last time likes were reset
+  passesUsedToday Int @default(0) // Daily pass counter
+  lastPassResetDate DateTime? // Last time passes were reset
   messagesUsedToday Int @default(0) // Daily message counter
   lastMessageResetDate DateTime? // Last time messages were reset
   isAdmin   Boolean    @default(false)
@@ -68,6 +72,14 @@ model User {
   blockedUsers       BlockedUser[] @relation("blocker")
   blockedBy          BlockedUser[] @relation("blocked")
   questionnaire      Questionnaire?
+  personalityQuestionnaire PersonalityQuestionnaire? @relation("personalityQuestionnaire")
+  relationshipGoalsQuestionnaire RelationshipGoalsQuestionnaire? @relation("relationshipGoalsQuestionnaire")
+  lifestyleQuestionnaire LifestyleQuestionnaire? @relation("lifestyleQuestionnaire")
+  valuesBelifsQuestionnaire ValuesBelifsQuestionnaire? @relation("valuesBelifsQuestionnaire")
+  interestsHobbiesQuestionnaire InterestsHobbiesQuestionnaire? @relation("interestsHobbiesQuestionnaire")
+  musicPersonalityQuestionnaire MusicPersonalityQuestionnaire? @relation("musicPersonalityQuestionnaire")
+  questionnaireCompletions QuestionnaireCompletion[] @relation("questionnaireCompletions")
+  intimatePreferences IntimatePreferences? @relation("userIntimatePreferences")
   fraudAlerts        FraudAlert[]
   redemptions        Redemption[]
   premium            UserPremium?
@@ -89,6 +101,14 @@ model User {
   typingIndicators  TypingIndicator[]
   userBehaviors     UserBehavior[]
   notifications     Notification[]
+  intimatePreferencesAgreed Boolean @default(false) // Has user agreed to intimate preferences terms
+  intimatePreferencesAgreedAt DateTime? // When user agreed to intimate preferences terms
+  intimatePreferencesAgreedVersion String? // Version of agreement accepted
+  intimatePreferencesAgreedIP String? // IP address for audit trail
+  wantToSeeIntimatePreferences Boolean @default(true) // User's privacy setting: whether to see intimate preferences from matches
+  personalityType String? // MBTI type (e.g., INTJ, ENFP)
+  profileScore Int? // Profile quality score (70-100)
+  profileCompletion Int? // Profile completion percentage (85-100)
 
   @@index([email])
   @@index([tier])
@@ -235,6 +255,94 @@ model Questionnaire {
   updatedAt DateTime @updatedAt
 
   @@index([userId])
+}
+
+model PersonalityQuestionnaire {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation("personalityQuestionnaire", fields: [userId], references: [id], onDelete: Cascade)
+  answers   String   // JSON object with Big Five trait answers
+  completedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model RelationshipGoalsQuestionnaire {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation("relationshipGoalsQuestionnaire", fields: [userId], references: [id], onDelete: Cascade)
+  answers   String   // JSON object with relationship goals answers
+  completedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model LifestyleQuestionnaire {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation("lifestyleQuestionnaire", fields: [userId], references: [id], onDelete: Cascade)
+  answers   String   // JSON object with lifestyle answers
+  completedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model ValuesBelifsQuestionnaire {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation("valuesBelifsQuestionnaire", fields: [userId], references: [id], onDelete: Cascade)
+  answers   String   // JSON object with values and beliefs answers
+  completedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model InterestsHobbiesQuestionnaire {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation("interestsHobbiesQuestionnaire", fields: [userId], references: [id], onDelete: Cascade)
+  answers   String   // JSON object with interests and hobbies answers
+  completedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model MusicPersonalityQuestionnaire {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation("musicPersonalityQuestionnaire", fields: [userId], references: [id], onDelete: Cascade)
+  answers   String   // JSON object with music personality answers
+  completedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model QuestionnaireCompletion {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation("questionnaireCompletions", fields: [userId], references: [id], onDelete: Cascade)
+  type      String   // "personality", "relationship_goals", "lifestyle"
+  completed Boolean  @default(false)
+  completedAt DateTime?
+  coinsRewarded Int @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, type])
+  @@index([userId])
+  @@index([type])
 }
 
 model Reward {
@@ -517,4 +625,36 @@ model Notification {
   @@index([read])
   @@index([createdAt])
   @@index([type])
+}
+
+model IntimatePreferences {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation("userIntimatePreferences", fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Preference categories (JSON arrays of selected options)
+  dominanceSubmission String? // JSON: ["dominant", "submissive", "switch", "none"]
+  bondage String? // JSON: ["interested", "experienced", "not_interested"]
+  roleplay String? // JSON: ["interested", "experienced", "not_interested"]
+  voyeurism String? // JSON: ["interested", "experienced", "not_interested"]
+  
+  // Additional preferences
+  communicationStyle String? // JSON: ["direct", "subtle", "playful"]
+  boundaries String? // JSON: ["strict", "flexible", "experimental"]
+  frequency String? // JSON: ["daily", "weekly", "monthly", "varies"]
+  
+  // Custom notes (max 500 chars, moderated)
+  customNotes String?
+  
+  // Metadata
+  isPublic Boolean @default(false) // Can be hidden even from matches
+  
+  // Moderation
+  flaggedForReview Boolean @default(false)
+  moderationNotes String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
