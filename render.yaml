@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: forever-us-backend
+    runtime: node
+    rootDir: .
+    buildCommand: npm ci && prisma generate
+    startCommand: node src/index.js
