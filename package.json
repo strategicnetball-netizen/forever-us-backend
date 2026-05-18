@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "node --watch src/index.js",
+    "dev": "node --watch index.js",
     "build": "echo 'No build needed'",
     "start": "node ./src/index.js",
     "prisma:generate": "prisma generate",
@@ -31,3 +31,4 @@
     "typescript": "^5.3.3"
   }
 }
+
